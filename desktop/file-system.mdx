@@ -1,0 +1,189 @@
+---
+title: "File System Options in @stlite/desktop"
+sidebarTitle: "File System"
+description: "Configure persistent file storage in Stlite desktop apps using IndexedDB (IDBFS) or mount host OS directories via NODEFS with the NodeJS worker mode."
+---
+
+Stlite runs your Python code on [Pyodide](https://pyodide.org/), a CPython runtime compiled to WebAssembly. Pyodide's underlying runtime, Emscripten, provides a virtual file system that your Python code interacts with through the standard `open()` call and the `os` / `pathlib` modules — just as it would with a real file system. When Stlite starts your app, it mounts your source files onto this virtual file system automatically.
+
+## Default File System (MEMFS)
+
+By default, Emscripten uses [`MEMFS`](https://emscripten.org/docs/api_reference/Filesystem-API.html#memfs) — an in-memory file system. Any files your Python code creates or modifies at runtime exist only in memory and are **lost when the application is closed or restarted**. This is fine for temporary computation but unsuitable for storing user data, preferences, or any output that needs to persist.
+
+To retain data across restarts, you can use one of two persistence mechanisms: IndexedDB-backed storage (IDBFS) or direct host OS file system access (NODEFS).
+
+---
+
+## IndexedDB Persistence (IDBFS)
+
+[IDBFS](https://emscripten.org/docs/api_reference/Filesystem-API.html#filesystem-api-idbfs) mounts a virtual directory that is backed by the browser's (or Electron's) IndexedDB storage. Files written to an IDBFS-mounted path are serialised to IndexedDB and automatically restored the next time the app starts. Data is stored inside Electron's app-data directory on the user's machine.
+
+### Enabling IDBFS
+
+Add the `idbfsMountpoints` field to `stlite.desktop` in your `package.json`, then re-run `npm run dump`:
+
+```json
+{
+  "stlite": {
+    "desktop": {
+      "files": ["app.py"],
+      "entrypoint": "app.py",
+      "idbfsMountpoints": ["/mnt/persistent"]
+    }
+  }
+}
+```
+
+You can specify multiple mount points:
+
+```json
+{
+  "stlite": {
+    "desktop": {
+      "idbfsMountpoints": ["/mnt/persistent", "/mnt/cache"]
+    }
+  }
+}
+```
+
+### Accessing IDBFS in Python
+
+Once mounted, you can use the path exactly like any ordinary directory in Python:
+
+```python
+import streamlit as st
+import os
+
+SAVE_DIR = "/mnt/persistent"
+SAVE_FILE = os.path.join(SAVE_DIR, "counter.txt")
+
+# Read persisted value
+if os.path.exists(SAVE_FILE):
+    with open(SAVE_FILE, "r") as f:
+        count = int(f.read().strip())
+else:
+    count = 0
+
+st.write(f"Current count: **{count}**")
+
+if st.button("Increment"):
+    count += 1
+    with open(SAVE_FILE, "w") as f:
+        f.write(str(count))
+    st.rerun()
+```
+
+Because the `/mnt/persistent` directory is IDBFS-backed, `counter.txt` will still be there the next time the user opens the application.
+
+<Note>
+  IDBFS works without `nodeJsWorker: true`. It is backed by Electron's IndexedDB implementation and does not require access to the host OS file system.
+</Note>
+
+---
+
+## Local File System Access (NODEFS)
+
+[NODEFS](https://emscripten.org/docs/api_reference/Filesystem-API.html#nodefs) maps a directory on the **host operating system** into the Pyodide virtual file system. This gives your Python code direct read/write access to real files on the user's machine — for example, their home directory, a project folder, or a shared network drive.
+
+### Requirements
+
+NODEFS requires the **NodeJS worker mode** to be enabled. This shifts Pyodide's execution from the renderer process's sandboxed Web Worker into a NodeJS worker thread in Electron's main process, where Node.js file system APIs are available.
+
+### Configuration
+
+Set both `nodeJsWorker: true` and `nodefsMountpoints` in your `package.json`:
+
+```json
+{
+  "stlite": {
+    "desktop": {
+      "files": ["app.py"],
+      "entrypoint": "app.py",
+      "nodeJsWorker": true,
+      "nodefsMountpoints": {
+        "/mnt/local": "."
+      }
+    }
+  }
+}
+```
+
+The `nodefsMountpoints` field is an object where each key is a virtual file system path and each value is the corresponding host OS path. In the example above, `"."` (the current working directory of the Electron process) is accessible inside Python at `/mnt/local`.
+
+### Path Placeholders
+
+Hard-coding absolute host OS paths is fragile across different user machines. Instead, use placeholder variables that Stlite resolves at runtime using [Electron's `app.getPath`](https://www.electronjs.org/docs/latest/api/app#appgetpathname):
+
+| Placeholder | Description | Example (Linux) |
+|---|---|---|
+| `{{home}}` | User's home directory | `/home/alice` |
+| `{{userData}}` | App-specific user data directory | `/home/alice/.config/my-app` |
+| `{{temp}}` | System temporary directory | `/tmp` |
+
+Any path name supported by `app.getPath` can be used as a placeholder by wrapping it in double curly braces.
+
+```json
+{
+  "stlite": {
+    "desktop": {
+      "nodeJsWorker": true,
+      "nodefsMountpoints": {
+        "/mnt/home": "{{home}}",
+        "/mnt/appdata": "{{userData}}/data",
+        "/mnt/tmp": "{{temp}}"
+      }
+    }
+  }
+}
+```
+
+### Accessing Host Files in Python
+
+With the configuration above, Python code reads and writes host OS files through the virtual paths:
+
+```python
+import streamlit as st
+import os
+
+HOST_HOME = "/mnt/home"
+
+st.title("Files in your home directory")
+
+entries = os.listdir(HOST_HOME)
+st.write(entries)
+
+new_filename = st.text_input("Create a file in your home directory:")
+content = st.text_area("File content:")
+
+if st.button("Save") and new_filename:
+    dest = os.path.join(HOST_HOME, new_filename)
+    with open(dest, "w") as f:
+        f.write(content)
+    st.success(f"Saved to {dest}")
+```
+
+Any write your Python code makes to `/mnt/home/example.txt` is immediately reflected as `~/example.txt` on the user's actual machine.
+
+---
+
+## Security Considerations
+
+<Warning>
+  **NodeJS worker mode removes the sandbox.** When `nodeJsWorker: true` is set, your Python code runs in a Node.js worker thread inside Electron's main process. This means:
+
+  - The Python code has the **same privileges as the Node.js process itself**. It can read and write any file on the host OS, spawn child processes, make arbitrary network requests, and perform any other operation that Node.js can perform.
+  - There is **no isolation** between your Python code and the host operating system.
+  - If your app loads or executes **untrusted Python code or packages**, those could harm the user's system.
+
+  Only enable NodeJS worker mode when you fully trust all Python code and packages that your application will execute. For apps that do not need host file system access, the default Web Worker mode (sandboxed Chromium renderer) is strongly preferred.
+</Warning>
+
+### Comparison of Worker Modes
+
+| | Default Web Worker | NodeJS Worker (`nodeJsWorker: true`) |
+|---|---|---|
+| **Execution context** | Sandboxed Chromium renderer | Node.js main process |
+| **Host file system access** | ✗ Not available | ✓ Via NODEFS |
+| **Sandbox** | ✓ Browser sandbox | ✗ No sandbox |
+| **Privilege level** | Browser (restricted) | Full Node.js (OS-level) |
+| **Recommended for** | Most apps | Apps requiring direct file I/O |

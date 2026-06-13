@@ -1,0 +1,218 @@
+---
+title: "Loading Files and Archives into Stlite Virtual FS"
+sidebarTitle: "Files & Archives"
+description: "Learn how to pass files to Stlite via the files and archives options: inline strings, binary data, URL references, and zip archive unpacking."
+---
+
+Stlite runs Python inside [Pyodide](https://pyodide.org/), which provides a Linux-like virtual file system (powered by [Emscripten FS](https://emscripten.org/docs/api_reference/Filesystem-API.html)) that is completely isolated from the host operating system. When your Python code opens a file with `open("path/to/file")`, it is reading from this virtual file system — not from the user's hard drive or the web server. The `files` and `archives` options on `mount()` are how you populate that file system before the app starts.
+
+The default file system backend is [`MEMFS`](https://emscripten.org/docs/api_reference/Filesystem-API.html#memfs), which is ephemeral: all data is lost when the page is reloaded. For persistent storage across reloads, see the [`idbfsMountpoints`](/browser/mount-api#param-idbfsmountpoints) option.
+
+## The `files` option
+
+`files` is a plain JavaScript object whose keys are virtual file system paths and whose values describe the file content. Three value shapes are supported.
+
+### 1. Inline string or binary data
+
+Pass the file content directly as a JavaScript `string` or `Uint8Array`. This is the most straightforward approach for source code and small data files that you want to embed directly in the page.
+
+```js
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      // String content
+      "streamlit_app.py": `
+import streamlit as st
+st.write("Hello from an inline file!")
+`,
+      // Binary content
+      "assets/icon.bin": new Uint8Array([0x00, 0x01, 0x02, 0x03]),
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+### 2. Object with a `url` field
+
+Provide a `{ url: "..." }` object to have Stlite fetch the file from a URL and write it to the virtual file system at startup. Both absolute and relative URLs are supported — relative URLs are resolved against `window.location.href` before being passed to the worker.
+
+```js
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      // Absolute URL
+      "streamlit_app.py": {
+        url: "https://example.com/myapp/streamlit_app.py",
+      },
+      // Relative URL (resolved against the current page)
+      "data/sales.csv": {
+        url: "./data/sales.csv",
+      },
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+### 3. Object with `data` and `opts` fields (advanced)
+
+For advanced control over how Emscripten writes the file, supply both a `data` field (the content) and an `opts` field (options forwarded to [`FS.writeFile(path, data, opts)`](https://emscripten.org/docs/api_reference/Filesystem-API.html#FS.writeFile)). The `url` field also accepts an `opts` sibling.
+
+```js
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      // data + opts
+      "config/settings.json": {
+        data: '{"theme": "dark"}',
+        opts: { encoding: "utf8" },
+      },
+      // url + opts
+      "assets/font.woff2": {
+        url: "./fonts/myfont.woff2",
+        opts: { encoding: "binary" },
+      },
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+<Note>
+  Relative URLs in the `files` option are resolved to absolute URLs before
+  being sent to the background worker, because the worker operates in a
+  separate context where the page's base URL is not available.
+</Note>
+
+## The `archives` option
+
+Use `archives` to load compressed archives — such as zip or tar files — unpack them, and mount the resulting directory tree onto the virtual file system. This is useful for distributing many data or asset files as a single download.
+
+Each entry in the `archives` array can specify the archive either by URL or as a raw binary buffer, plus a `format` string and optional `options`. These are forwarded to [`pyodide.unpackArchive(buffer, format, options)`](https://pyodide.org/en/stable/usage/api/js-api.html#pyodide.unpackArchive).
+
+```js
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import streamlit as st
+import os
+
+# Files unpacked from the archive are accessible here
+files = os.listdir("/unpacked")
+st.write(files)
+`,
+    },
+    archives: [
+      {
+        // Load from URL (relative or absolute)
+        url: "./assets.zip",
+        format: "zip",
+        options: {},
+      },
+    ],
+  },
+  document.getElementById("root"),
+);
+```
+
+### Passing binary data directly
+
+If you already have the archive content as a `Uint8Array` (for example fetched manually), pass it via the `buffer` field instead of `url`.
+
+```js
+const response = await fetch("./assets.zip");
+const buffer = new Uint8Array(await response.arrayBuffer());
+
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: { "streamlit_app.py": "import streamlit as st\nst.write('hi')" },
+    archives: [
+      {
+        buffer,
+        format: "zip",
+        options: {},
+      },
+    ],
+  },
+  document.getElementById("root"),
+);
+```
+
+### `archives` entry fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | `string` | One of `url` or `buffer` | URL of the archive to download. Relative URLs are resolved against `window.location.href`. |
+| `buffer` | `ArrayBuffer \| Uint8Array` | One of `url` or `buffer` | Raw binary content of the archive. |
+| `format` | `string` | Yes | Archive format passed to `pyodide.unpackArchive()`, e.g. `"zip"`, `"tar"`, `"tar.gz"`. |
+| `options` | `object` | No | Additional options forwarded to `pyodide.unpackArchive()`. |
+
+<Note>
+  Just like the `files` `url` field, relative URLs in `archives` are resolved to absolute URLs before being passed to the worker.
+</Note>
+
+## Multipage app with `files`
+
+Build a multipage Streamlit app by including the main entry point and page scripts under `pages/`.
+
+```js
+mount(
+  {
+    entrypoint: "👋_Hello.py",
+    files: {
+      "👋_Hello.py": `
+import streamlit as st
+
+st.set_page_config(page_title="Hello")
+st.title("Main page")
+`,
+      "pages/1_⭐️_Page1.py": `
+import streamlit as st
+
+st.set_page_config(page_title="Page 1")
+st.title("Page 1")
+`,
+      "pages/2_🎈_Page2.py": `
+import streamlit as st
+
+st.set_page_config(page_title="Page 2")
+st.title("Page 2")
+`,
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+## Persistent file storage with IndexedDB
+
+By default all virtual file system paths use `MEMFS` and are wiped on page reload. Mount specific directories with the [`idbfsMountpoints`](/browser/mount-api#param-idbfsmountpoints) option to back them with IndexedDB and persist data across sessions.
+
+```js
+mount(
+  {
+    idbfsMountpoints: ["/mnt"],
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import datetime
+import streamlit as st
+
+with open("/mnt/log.txt", "a") as f:
+    f.write(f"{datetime.datetime.now()}\\n")
+
+with open("/mnt/log.txt", "r") as f:
+    st.code(f.read())
+`,
+    },
+  },
+  document.getElementById("root"),
+);
+```

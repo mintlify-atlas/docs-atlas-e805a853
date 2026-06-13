@@ -1,0 +1,241 @@
+---
+title: "Configuring @stlite/desktop in package.json"
+sidebarTitle: "Configuration"
+description: "All configuration options for @stlite/desktop in the stlite.desktop field of package.json: files, entrypoint, dependencies, embed, appMenu, nodeJsWorker, and mount points."
+---
+
+All `@stlite/desktop` configuration lives inside the `stlite.desktop` object in your project's `package.json`. After changing any option you must re-run `npm run dump` to apply the changes to the `build/` directory.
+
+## Configuration Fields
+
+<ParamField body="files" type="string[]" required>
+  An array of file paths and glob patterns relative to your project root. These files and directories are copied into the bundled desktop app.
+
+  Supports standard glob syntax. For example, `pages/*.py` matches all Python files inside a `pages/` subdirectory, which is the conventional layout for Streamlit multi-page apps.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "files": ["app.py", "pages/*.py", "data/", "assets"]
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="entrypoint" type="string" required>
+  The Streamlit Python script to run when the application starts. This must be the filename of one of the scripts listed in `files`.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "files": ["app.py"],
+        "entrypoint": "app.py"
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="dependencies" type="string[]">
+  A list of Python package names to pre-install at build time. The `dump` command downloads these packages from the Pyodide package registry and embeds them in the bundle so they are available without an internet connection at runtime.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "dependencies": ["numpy", "pandas", "matplotlib"]
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="requirementsTxtFiles" type="string[]">
+  An array of paths to `requirements.txt` files. The `dump` command reads each file and installs all packages listed in it. Can be used alongside `dependencies`.
+
+  The referenced `requirements.txt` files should also be listed in `files` if they need to be available inside the running app.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "requirementsTxtFiles": ["requirements.txt"]
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="embed" type="boolean">
+  When set to `true`, the app runs in Streamlit's [embed mode](https://docs.streamlit.io/streamlit-community-cloud/get-started/embed-your-app#embedding-with-iframes), which hides the toolbar, hamburger menu, and footer. Useful for a cleaner, app-like desktop UI.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "embed": true
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="appMenu" type="boolean">
+  Controls the visibility of the native application menu bar (File, Edit, View, etc.). Set to `false` to hide it entirely.
+
+  - **Windows / Linux** — removes the menu bar from the application window.
+  - **macOS** — removes the application menu from the system menu bar at the top of the screen.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "appMenu": false
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="nodeJsWorker" type="boolean">
+  When set to `true`, Stlite dispatches Pyodide in a [NodeJS worker thread](https://nodejs.org/api/worker_threads.html) running inside Electron's main process instead of the default Web Worker in the renderer process. This is required for NODEFS host file system access via `nodefsMountpoints`.
+
+  See the [File System](/desktop/file-system) page for full details and security considerations.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "nodeJsWorker": true
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="idbfsMountpoints" type="string[]">
+  An array of virtual file system paths to mount with IndexedDB-backed persistence ([IDBFS](https://emscripten.org/docs/api_reference/Filesystem-API.html#filesystem-api-idbfs)). Files written to these paths survive application restarts. Data is stored in Electron's app-data directory.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "idbfsMountpoints": ["/mnt/persistent"]
+      }
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField body="nodefsMountpoints" type="Record<string, string>">
+  An object that maps virtual file system paths (keys) to host OS file system paths (values). Requires `nodeJsWorker: true`. Allows your Python code to read and write real files on the user's machine by accessing paths on the virtual file system.
+
+  Path values support placeholder variables resolved at runtime via [Electron's `app.getPath`](https://www.electronjs.org/docs/latest/api/app#appgetpathname):
+
+  | Placeholder | Example resolved path (Linux) |
+  |---|---|
+  | `{{home}}` | `/home/user` |
+  | `{{userData}}` | `/home/user/.config/my-streamlit-app` |
+  | `{{temp}}` | `/tmp` |
+
+  Any path name accepted by `app.getPath` can be used as a placeholder by wrapping it in double curly braces.
+
+  ```json
+  {
+    "stlite": {
+      "desktop": {
+        "nodeJsWorker": true,
+        "nodefsMountpoints": {
+          "/mnt/home": "{{home}}",
+          "/mnt/data": "{{userData}}/data"
+        }
+      }
+    }
+  }
+  ```
+</ParamField>
+
+## Custom Pyodide Source
+
+By default, the `dump` command downloads Pyodide resources (including prebuilt package wheel files) from the [JsDelivr CDN](https://pyodide.org/en/stable/usage/downloading-and-deploying.html#cdn). If CDN access is restricted in your environment, you can point the command at a local Pyodide distribution or a different URL using the `--pyodide-source` flag.
+
+Download a Pyodide release from the [Pyodide GitHub releases page](https://pyodide.org/en/stable/usage/downloading-and-deploying.html#github-releases), extract it locally, and then run:
+
+```bash
+npm run dump -- --pyodide-source /path/to/pyodide/
+```
+
+```bash
+yarn dump --pyodide-source /path/to/pyodide/
+```
+
+## Full Annotated Example
+
+The following `package.json` demonstrates all available `stlite.desktop` options together:
+
+```json
+{
+  "name": "my-streamlit-app",
+  "version": "0.1.0",
+  "main": "./build/electron/main.js",
+  "scripts": {
+    "dump": "dump-stlite-desktop-artifacts",
+    "serve": "cross-env NODE_ENV=production electron .",
+    "app:dir": "electron-builder --dir",
+    "app:dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "files": ["build/**/*"],
+    "directories": {
+      "buildResources": "assets"
+    }
+  },
+  "devDependencies": {
+    "@stlite/desktop": "^0.79.5",
+    "cross-env": "^7.0.3",
+    "electron": "34.3.0",
+    "electron-builder": "^25.1.8"
+  },
+  "stlite": {
+    "desktop": {
+      // Required: source files to bundle
+      "files": ["app.py", "pages/*.py", "requirements.txt"],
+
+      // Required: entry point script
+      "entrypoint": "app.py",
+
+      // Optional: Python packages to pre-install
+      "dependencies": ["numpy", "pandas"],
+
+      // Optional: requirements.txt files to read
+      "requirementsTxtFiles": ["requirements.txt"],
+
+      // Optional: hide Streamlit toolbar, menu, and footer
+      "embed": true,
+
+      // Optional: hide the native application menu bar
+      "appMenu": false,
+
+      // Optional: run Python in a NodeJS worker (needed for NODEFS)
+      "nodeJsWorker": true,
+
+      // Optional: IndexedDB-backed persistent directories
+      "idbfsMountpoints": ["/mnt/db"],
+
+      // Optional: host OS directory mounts (requires nodeJsWorker: true)
+      "nodefsMountpoints": {
+        "/mnt/home": "{{home}}",
+        "/mnt/appdata": "{{userData}}/data"
+      }
+    }
+  }
+}
+```
+
+<Note>
+  JSON does not support comments. The `//` lines above are for illustration only — remove them from your actual `package.json`.
+</Note>

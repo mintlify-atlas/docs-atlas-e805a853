@@ -1,0 +1,140 @@
+---
+title: "Known Limitations of Stlite in the Browser Environment"
+sidebarTitle: "Limitations"
+description: "Stlite's browser runtime has known limitations: time.sleep is no-op, some packages aren't available, DataFrame serialization differences, and st.bokeh_chart is unsupported."
+---
+
+Stlite runs your Python code inside [Pyodide](https://pyodide.org/) — a WebAssembly port of CPython that executes entirely in the browser. This is a genuinely different runtime from a standard Python server process, and it comes with constraints imposed by the browser security model, the single-threaded JavaScript event loop, and the limits of what can be compiled to WebAssembly. The known issues are documented below, along with workarounds where they exist.
+
+## Known limitations
+
+### 1. `time.sleep()` is a no-op
+
+`time.sleep()` does not actually pause execution in Stlite. Because Stlite runs on the browser's single-threaded event loop, a true blocking sleep would freeze the entire tab — so Pyodide makes it a no-op instead.
+
+**Workaround:** Use `asyncio.sleep()` with top-level `await`:
+
+```python
+import asyncio
+import streamlit as st
+
+st.write("Waiting 3 seconds...")
+await asyncio.sleep(3)
+st.write("Done!")
+```
+
+See the [Top-Level Await guide](/guides/top-level-await) for a full explanation of async patterns in Stlite.
+
+---
+
+### 2. `st.spinner()` does not show with blocking methods
+
+Stlite runs in a single-threaded environment. If you call a blocking method directly inside a `st.spinner()` context, the spinner never gets a chance to render — the blocking method holds the event loop before the spinner UI can appear.
+
+**Workaround:** Add `await asyncio.sleep(0.1)` before the blocking call to yield control to the event loop first:
+
+```python
+import asyncio
+import streamlit as st
+import pyodide.http
+
+with st.spinner("Running a blocking method..."):
+    await asyncio.sleep(0.1)  # Let the spinner render before blocking
+    response = pyodide.http.open_url("https://example.com/data.txt")
+
+st.write(response.read())
+```
+
+<Note>
+  The 0.1-second sleep adds a small but real delay to your execution. This is
+  the intended trade-off to allow the spinner animation to appear.
+</Note>
+
+---
+
+### 3. `st.bokeh_chart()` is not supported
+
+`st.bokeh_chart()` does not work in Stlite. Pyodide ships Bokeh version 3.x, but Streamlit's `st.bokeh_chart()` only supports Bokeh 2.x. The two versions are API-incompatible.
+
+Bokeh 3.x support in Streamlit is tracked in [streamlit/streamlit#5858](https://github.com/streamlit/streamlit/issues/5858). Until that issue is resolved, use an alternative charting library such as `altair`, `plotly`, or `matplotlib`.
+
+---
+
+### 4. `st.write_stream()` requires an async generator
+
+Due to the same single-threaded constraint as `st.spinner()`, passing a synchronous generator to `st.write_stream()` does not work reliably in Stlite. Use an **async generator function** instead:
+
+```python
+import asyncio
+import streamlit as st
+
+async def stream():
+    for i in range(10):
+        yield str(i)
+        await asyncio.sleep(1)  # Yield to the event loop between chunks
+
+st.write_stream(stream)
+```
+
+A synchronous generator can technically be passed but will not yield control between items, leading to the entire output appearing at once rather than streaming progressively.
+
+---
+
+### 5. DataFrame column type differences
+
+There are small differences in how less-common DataFrame column data types are handled by `st.dataframe()`, `st.data_editor()`, `st.table()`, and Altair-based charts.
+
+The root cause is that Stlite uses the **Parquet** format to serialize DataFrames internally instead of the Arrow IPC format used by standard Streamlit. Parquet has a different type system, and some types (for example, certain integer nullability semantics or extension types) are round-tripped differently.
+
+This affects only uncommon column types; typical `float64`, `int64`, `object` (string), and `datetime` columns behave normally.
+
+---
+
+### 6. Binary extension packages are not available
+
+Packages that include compiled binary extensions (C, Rust, Fortran, etc.) cannot be installed in Stlite unless they have been explicitly built for the Pyodide/WebAssembly target. Pyodide ships a curated list of supported scientific packages (NumPy, pandas, scipy, and many others), but arbitrary packages from PyPI that contain native code will fail to install.
+
+**Workaround:** Check whether the package you need is included in [Pyodide's package list](https://pyodide.org/en/stable/usage/packages-in-pyodide.html). If it is not listed, look for a pure-Python alternative or a Pyodide-compatible fork.
+
+See the [Pyodide FAQ](https://pyodide.org/en/stable/usage/faq.html#why-can-t-micropip-find-a-pure-python-wheel-for-a-package) for a detailed explanation of why pure-Python wheels are required.
+
+---
+
+### 7. Package version resolution may fail
+
+`micropip` — the package installer used by Pyodide — has a [known limitation](https://github.com/pyodide/micropip/issues/103) in its dependency resolution algorithm. In some cases, installing two packages together causes a version conflict that micropip cannot resolve, even when a valid solution exists.
+
+A known example: installing `plotly` alongside `altair` may fail. As a workaround, pin the `plotly` version explicitly:
+
+```python
+# In your requirements list, pin to the 5.x series
+plotly==5.*
+```
+
+If you encounter version resolution failures, try pinning one or more of the conflicting packages to a known-compatible version range.
+
+---
+
+## Checking package availability
+
+Before adding a package to your requirements, check whether it is available in the Pyodide environment:
+
+1. **Pyodide built-in packages** — Browse the [Pyodide packages list](https://pyodide.org/en/stable/usage/packages-in-pyodide.html) to see all packages that ship with Pyodide distributions.
+
+2. **Pure-Python packages from PyPI** — `micropip` can install any package from PyPI that provides a pure-Python wheel (a `.whl` file with `none-any` in the name). Binary wheels for other platforms (e.g. `linux-x86_64`) cannot be used.
+
+3. **Pyodide FAQ** — The [Pyodide FAQ on micropip](https://pyodide.org/en/stable/usage/faq.html#why-can-t-micropip-find-a-pure-python-wheel-for-a-package) explains the wheel-compatibility rules in detail.
+
+<Tip>
+  If you are unsure whether a package will work, open [Stlite
+  Sharing](https://edit.share.stlite.net/) and try installing it interactively
+  before building your full app.
+</Tip>
+
+## Reporting issues
+
+The limitations listed on this page are the currently known issues. If you discover a new problem or an undocumented behaviour difference between Stlite and standard Streamlit, please open a report on GitHub:
+
+**[github.com/whitphx/stlite/issues](https://github.com/whitphx/stlite/issues)**
+
+Include a minimal reproducible example wherever possible — this makes it much easier to diagnose whether the issue is a Stlite bug, a Pyodide limitation, or a browser environment constraint.

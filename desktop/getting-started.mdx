@@ -1,0 +1,209 @@
+---
+title: "Create a Streamlit Desktop App with @stlite/desktop"
+sidebarTitle: "Getting Started"
+description: "Step-by-step guide to building a Streamlit Electron desktop app: set up package.json, write your app, run the dump command, preview, and package for distribution."
+---
+
+`@stlite/desktop` turns any Streamlit Python application into a native desktop app powered by Electron and Pyodide. This guide walks you through every step, from an empty directory to a distributable installer, without requiring Python to be installed on your development machine or the end-user's machine.
+
+## Prerequisites
+
+- **Node.js** 18 or later
+- **npm** (bundled with Node.js) or **yarn**
+
+## Steps
+
+<Steps>
+  <Step title="Create package.json">
+    Create a new directory for your project and add the following `package.json` file. Update the `name` field to match your application name.
+
+    ```json
+    {
+      "name": "my-streamlit-app",
+      "version": "0.1.0",
+      "main": "./build/electron/main.js",
+      "scripts": {
+        "dump": "dump-stlite-desktop-artifacts",
+        "serve": "cross-env NODE_ENV=production electron .",
+        "app:dir": "electron-builder --dir",
+        "app:dist": "electron-builder",
+        "postinstall": "electron-builder install-app-deps"
+      },
+      "build": {
+        "files": ["build/**/*"],
+        "directories": {
+          "buildResources": "assets"
+        }
+      },
+      "devDependencies": {
+        "@stlite/desktop": "^0.79.5",
+        "cross-env": "^7.0.3",
+        "electron": "34.3.0",
+        "electron-builder": "^25.1.8"
+      },
+      "stlite": {
+        "desktop": {
+          "files": ["app.py"],
+          "entrypoint": "app.py"
+        }
+      }
+    }
+    ```
+
+    Key fields to understand:
+
+    | Field | Purpose |
+    |---|---|
+    | `main` | Points Electron to the compiled entry file inside `build/`. Do not change this. |
+    | `scripts.dump` | Runs the `dump-stlite-desktop-artifacts` CLI to prepare the `build/` directory. |
+    | `scripts.serve` | Launches Electron against the `build/` directory for local preview. |
+    | `scripts.app:dist` | Packages the app into a distributable installer via `electron-builder`. |
+    | `scripts.postinstall` | Installs native Electron dependencies automatically after `npm install`. |
+    | `build.files` | Tells `electron-builder` which files to include in the final package. |
+    | `stlite.desktop.files` | Your app source files to copy into the bundle. |
+    | `stlite.desktop.entrypoint` | The Streamlit script that serves as the app's entry point. |
+  </Step>
+
+  <Step title="Install dependencies">
+    Run the install command in your project directory. This downloads Electron, `@stlite/desktop`, and all other declared packages.
+
+    ```bash
+    npm install
+    ```
+
+    Or, if you prefer yarn:
+
+    ```bash
+    yarn install
+    ```
+  </Step>
+
+  <Step title="Create app.py">
+    Create `app.py` in the same directory and write your Streamlit application code:
+
+    ```python
+    import streamlit as st
+
+    st.title("Hello from the desktop!")
+    st.write("This app runs entirely offline, powered by Pyodide.")
+
+    name = st.text_input("What is your name?")
+    if name:
+        st.success(f"Hello, {name}!")
+    ```
+
+    The filename `app.py` is referenced in two places in `package.json`:
+
+    - `stlite.desktop.files` — tells the `dump` command to copy this file into the bundle.
+    - `stlite.desktop.entrypoint` — tells Stlite which file to run when the app starts.
+
+    If you prefer a different filename, update both fields accordingly.
+  </Step>
+
+  <Step title="Add more files (optional)">
+    You can include additional source files — extra Python modules, data files, images, or multi-page app pages — by adding them to the `stlite.desktop.files` array. Glob patterns are supported.
+
+    For example, to add a multi-page app structure:
+
+    ```json
+    {
+      "stlite": {
+        "desktop": {
+          "files": ["app.py", "pages/*.py", "assets"],
+          "entrypoint": "app.py"
+        }
+      }
+    }
+    ```
+
+    - `pages/*.py` matches all Python files in the `pages/` directory, enabling Streamlit's [multi-page app](https://docs.streamlit.io/library/get-started/multipage-apps) feature.
+    - `assets` copies the entire `assets/` directory into the bundle.
+  </Step>
+
+  <Step title="Specify Python packages (optional)">
+    If your app depends on third-party Python packages, declare them so the `dump` command can pre-install them into the bundle.
+
+    **Option A — inline list in `package.json`:**
+
+    ```json
+    {
+      "stlite": {
+        "desktop": {
+          "files": ["app.py"],
+          "entrypoint": "app.py",
+          "dependencies": ["numpy", "pandas", "matplotlib"]
+        }
+      }
+    }
+    ```
+
+    **Option B — `requirements.txt` file:**
+
+    ```json
+    {
+      "stlite": {
+        "desktop": {
+          "files": ["app.py", "requirements.txt"],
+          "entrypoint": "app.py",
+          "requirementsTxtFiles": ["requirements.txt"]
+        }
+      }
+    }
+    ```
+
+    Both options can be combined. Packages are downloaded from the Pyodide package registry and pre-bundled so no internet connection is required at runtime.
+  </Step>
+
+  <Step title="Run the dump command">
+    Generate the `build/` directory that contains everything Electron needs:
+
+    ```bash
+    npm run dump
+    ```
+
+    Or with yarn:
+
+    ```bash
+    yarn dump
+    ```
+
+    The `dump` command performs the following:
+
+    - Copies your app source files (as listed in `stlite.desktop.files`) into `build/`.
+    - Downloads the Pyodide runtime.
+    - Downloads and pre-installs any declared Python packages.
+    - Writes the Electron main process scripts to `build/electron/`.
+
+    Re-run this command any time you change your app files, add new packages, or update configuration in `package.json`.
+  </Step>
+
+  <Step title="Preview the app">
+    Launch Electron to preview the app locally before packaging:
+
+    ```bash
+    npm run serve
+    ```
+
+    This runs `cross-env NODE_ENV=production electron .`, which starts Electron and loads `./build/electron/main.js`. You should see your Streamlit app open in a native desktop window.
+  </Step>
+
+  <Step title="Package for distribution">
+    When you are ready to distribute, build the final installer:
+
+    ```bash
+    npm run app:dist
+    ```
+
+    `electron-builder` reads your `build` configuration in `package.json` and produces platform-specific installers in the `./dist` directory:
+
+    - **macOS** — `.dmg` and/or `.app`
+    - **Windows** — `.exe` installer
+    - **Linux** — `.AppImage`, `.deb`, or other formats
+
+    To customize the installer (icon, app ID, signing credentials, etc.), refer to the [`electron-builder` documentation](https://www.electron.build/).
+  </Step>
+</Steps>
+
+<Note>
+  **Keep Electron up to date.** Always use the latest stable release of Electron to ensure your app receives security patches. The Electron project lists this as an [official security best practice](https://www.electronjs.org/docs/latest/tutorial/security#16-use-a-current-version-of-electron). Update the `electron` version in your `devDependencies` and re-run `npm install` and `npm run dump` after upgrading.
+</Note>

@@ -1,0 +1,42 @@
+---
+title: "@stlite/desktop: Bundle Streamlit Apps as Desktop Apps"
+sidebarTitle: "Overview"
+description: "@stlite/desktop converts your Streamlit Python app into a standalone Electron desktop app using Pyodide. No Python install required on the end-user's machine."
+---
+
+`@stlite/desktop` lets you ship any Streamlit application as a fully self-contained desktop application for Windows, macOS, and Linux. Because Python runs entirely inside [Pyodide](https://pyodide.org/) — a WebAssembly port of CPython — end-users never need to install Python, pip, or any other dependency. The finished product is a native executable (`.exe`, `.app`, `.dmg`, etc.) that works completely offline.
+
+## How It Works
+
+`@stlite/desktop` wraps the Stlite browser runtime inside an [Electron](https://www.electronjs.org/) shell:
+
+1. **Pyodide runs Python in WebAssembly.** Your Streamlit app's Python code executes inside Pyodide compiled to Wasm, hosted in an Electron renderer process (a sandboxed Chromium environment by default).
+2. **Packages are pre-bundled at build time.** When you run the `dump` command, the CLI resolves and downloads all declared Python packages, the Pyodide runtime, and your app source files into a local `build/` directory — no internet connection is needed at runtime.
+3. **Electron provides the native shell.** Electron wraps the Stlite web runtime and exposes it as a native desktop window, complete with a native application menu and OS-level window management.
+4. **`electron-builder` packages the result.** A single `npm run app:dist` command bundles everything into a distributable installer for each target platform.
+
+<CardGroup cols={3}>
+  <Card title="Getting Started" icon="rocket" href="/desktop/getting-started">
+    Install the package, write your app, and build your first desktop executable.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/desktop/configuration">
+    Full reference for every option in the `stlite.desktop` field of `package.json`.
+  </Card>
+  <Card title="File System" icon="folder-open" href="/desktop/file-system">
+    Persist data with IndexedDB (IDBFS) or mount host OS directories via NODEFS.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **Cross-platform distribution.** Build `.exe` installers for Windows, `.dmg` disk images for macOS, and `.AppImage` / `.deb` packages for Linux — all from the same codebase.
+- **Pre-bundled Python packages.** Declare dependencies with `stlite.desktop.dependencies` or point to a `requirements.txt` file; the `dump` command downloads and embeds wheels at build time so nothing is fetched at runtime.
+- **IndexedDB persistence (IDBFS).** Mount virtual file system paths backed by IndexedDB so that files your app writes survive application restarts. Data is stored in Electron's app-data directory.
+- **Host file system access (NODEFS).** Optionally enable the NodeJS worker mode and mount real host OS directories into the virtual file system, giving your Python code direct read/write access to local files.
+- **Embed mode.** Set `stlite.desktop.embed: true` to hide Streamlit's toolbar, hamburger menu, and footer for a cleaner desktop UI.
+- **Custom application menu.** Set `stlite.desktop.appMenu: false` to hide the native menu bar entirely.
+- **Custom Pyodide source.** Supply a local or alternative Pyodide distribution via `--pyodide-source` if JsDelivr CDN access is restricted in your environment.
+
+<Note>
+  The `dump` script in your `package.json` calls the `dump-stlite-desktop-artifacts` binary provided by `@stlite/desktop`. You can also invoke it directly as `@stlite/cli desktop <path>` if you are using the Stlite CLI package.
+</Note>

@@ -1,0 +1,129 @@
+---
+title: "Making HTTP Requests from Stlite Python Code"
+sidebarTitle: "HTTP Requests"
+description: "Stlite supports HTTP requests via requests, urllib, urllib3 2.2+, and pyodide.http. Learn which libraries work and when to use each in the browser environment."
+---
+
+Making HTTP requests from Python code running in the browser is not straightforward. Standard networking libraries like `requests` rely on system-level socket calls that do not exist in a WebAssembly sandbox. Stlite works around this by automatically patching popular libraries via [pyodide-http](https://github.com/koenvo/pyodide-http) and by exposing Pyodide's own async HTTP primitives — so you can make network calls without changing how you normally write Python code.
+
+## Supported libraries
+
+| Library | How it works | Notes |
+|---|---|---|
+| `requests` | Patched by pyodide-http | Limited to [supported classes/methods](https://github.com/koenvo/pyodide-http?tab=readme-ov-file#supported-packages) |
+| `urllib` | Patched by pyodide-http | Same limitation as `requests` |
+| `urllib3` ≥ 2.2.0 | Native Pyodide emscripten backend | No patch needed |
+| `pyodide.http.pyfetch()` | Native Pyodide Fetch API wrapper | Async — use with `await` |
+| `pyodide.http.open_url()` | Native Pyodide synchronous fetch | Synchronous — blocks the event loop |
+
+Stlite automatically enables the pyodide-http patches at startup, so `requests` and `urllib` work out of the box for the methods and classes listed in the [pyodide-http supported packages list](https://github.com/koenvo/pyodide-http?tab=readme-ov-file#supported-packages).
+
+<Note>
+  Standard networking libraries do **not** work in Pyodide by default. Stlite
+  applies the `pyodide-http` patch automatically so you don't have to, but the
+  patch only covers a subset of the `requests` and `urllib` APIs.
+</Note>
+
+## Using `requests` (synchronous)
+
+Because Stlite applies the pyodide-http patch automatically, you can use `requests` with the familiar synchronous API — no extra setup required. Simply include `requests` in your requirements if it isn't already available:
+
+```python
+import streamlit as st
+import requests
+
+st.title("Fetch data with requests")
+
+url = "https://jsonplaceholder.typicode.com/todos/1"
+response = requests.get(url)
+
+if response.ok:
+    data = response.json()
+    st.json(data)
+else:
+    st.error(f"Request failed: {response.status_code}")
+```
+
+<Warning>
+  Not all `requests` methods and classes are supported through the pyodide-http
+  patch. Check the [supported packages
+  list](https://github.com/koenvo/pyodide-http?tab=readme-ov-file#supported-packages)
+  if you encounter unexpected errors.
+</Warning>
+
+## Using `pyodide.http.pyfetch()` (async)
+
+[`pyodide.http.pyfetch()`](https://pyodide.org/en/stable/usage/api/python-api/http.html#pyodide.http.pyfetch) is Pyodide's native Python wrapper around the browser's [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API). It is async, which means you must `await` it. In Stlite, top-level `await` is supported, so you can use it directly in your script without wrapping it in `asyncio.run()`.
+
+```python
+import pyodide.http
+import streamlit as st
+
+url = "https://jsonplaceholder.typicode.com/posts/1"
+
+response = await pyodide.http.pyfetch(url)
+data = await response.json()
+
+st.title(data["title"])
+st.write(data["body"])
+```
+
+The response object supports several awaitable methods:
+
+```python
+# Read response as raw bytes
+raw_bytes = await response.bytes()
+
+# Read response as text
+text = await response.string()
+
+# Read response as parsed JSON
+parsed = await response.json()
+```
+
+<Tip>
+  Top-level `await` is a key feature of Stlite. See the [Top-Level Await
+  guide](/guides/top-level-await) to understand why `asyncio.run()` won't work
+  and how to structure async code in your Streamlit scripts.
+</Tip>
+
+## Using `pyodide.http.open_url()` (synchronous)
+
+[`pyodide.http.open_url()`](https://pyodide.org/en/stable/usage/api/python-api/http.html#pyodide.http.open_url) is a synchronous alternative provided by Pyodide. It returns a `io.StringIO`-like object you can read directly:
+
+```python
+import pyodide.http
+import streamlit as st
+
+url = "https://example.com/data.txt"
+response = pyodide.http.open_url(url)
+content = response.read()
+
+st.text(content)
+```
+
+<Warning>
+  `open_url()` blocks the event loop while the request is in flight. Using it
+  inside `st.spinner()` will prevent the spinner from rendering. If you need a
+  spinner, use `pyfetch()` with `await` instead, or add `await
+  asyncio.sleep(0.1)` before the call — see the [Top-Level Await
+  guide](/guides/top-level-await) for the workaround.
+</Warning>
+
+## Limitations
+
+### CORS restrictions
+
+HTTP requests made from inside the browser are subject to the browser's [CORS (Cross-Origin Resource Sharing)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) policy. Even if a request works in server-side Python, it may be blocked in Stlite if the target server does not include the appropriate `Access-Control-Allow-Origin` headers.
+
+There is no way to bypass CORS from within Stlite — this is enforced by the browser itself. If you hit a CORS error, you need either:
+- A server that sets permissive CORS headers, or
+- A CORS proxy that forwards requests on your behalf.
+
+### Partial API support for `requests` and `urllib`
+
+The pyodide-http patch does not implement the full `requests` or `urllib` API surface. Features like streaming responses, session cookies, advanced authentication, and proxy support may not work. Always consult the [pyodide-http supported packages documentation](https://github.com/koenvo/pyodide-http?tab=readme-ov-file#supported-packages) when you encounter unexpected behaviour.
+
+### `urllib3` version requirement
+
+`urllib3` requires version 2.2.0 or later for Pyodide/emscripten compatibility. Earlier versions will not work in Stlite.

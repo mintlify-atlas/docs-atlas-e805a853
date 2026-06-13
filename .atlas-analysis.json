@@ -1,0 +1,102 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Stlite",
+  "projectDescription": "Stlite runs Streamlit apps entirely in the browser using Pyodide (WebAssembly), eliminating the need for a Python server.",
+  "theme": "luma",
+  "primaryColor": "#f44c4c",
+  "lightColor": "#fc7d7d",
+  "darkColor": "#ae4c54",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "@stlite/browser",
+            "pages": [
+              "browser/overview",
+              "browser/custom-element",
+              "browser/mount-api",
+              "browser/files-and-archives",
+              "browser/configuration"
+            ]
+          },
+          {
+            "group": "@stlite/react",
+            "pages": [
+              "react/overview",
+              "react/quickstart",
+              "react/api-reference"
+            ]
+          },
+          {
+            "group": "@stlite/desktop",
+            "pages": [
+              "desktop/overview",
+              "desktop/getting-started",
+              "desktop/configuration",
+              "desktop/file-system"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/commands"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/file-system",
+              "guides/http-requests",
+              "guides/top-level-await",
+              "guides/limitations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Run Streamlit apps entirely in the browser with no Python server required",
+    "Powered by Pyodide (CPython compiled to WebAssembly)",
+    "Embed via CDN with a single <script> tag or the mount() JS function",
+    "React component integration via @stlite/react",
+    "Bundle Streamlit apps as standalone Electron desktop apps via @stlite/desktop",
+    "CLI tool to export apps as shareable URLs, self-contained HTML, or offline web bundles",
+    "Install Python packages at runtime via micropip",
+    "Persistent file storage using IndexedDB (IDBFS)",
+    "SharedWorker mode for running multiple apps with reduced memory",
+    "Multipage Streamlit app support"
+  ],
+  "publicApiSurface": [
+    "mount(options, container) — @stlite/browser: mounts a Streamlit app on a DOM element",
+    "<streamlit-app> custom element — HTML tag-based API for embedding apps",
+    "<app-file>, <app-requirements> — child tags for multi-file app configuration",
+    "createKernel(options) — @stlite/react: creates a Pyodide kernel instance",
+    "StliteApp — @stlite/react: React component rendering a Streamlit app",
+    "StliteAppWithToast — @stlite/react: StliteApp with progress/error toast notifications",
+    "useKernel() — @stlite/react: React hook for kernel lifecycle management",
+    "stliteReactPlugin() — Vite plugin for @stlite/react bundling",
+    "controller.unmount() — disposes the kernel and unmounts the React root",
+    "controller.install(requirements, options?) — installs Python packages at runtime",
+    "controller.writeFile(path, data, opts?) — writes a file to the virtual FS",
+    "controller.readFile(path, opts?) — reads a file from the virtual FS",
+    "controller.renameFile(oldPath, newPath) — renames a file in the virtual FS",
+    "controller.unlink(path) — deletes a file from the virtual FS",
+    "controller.runPython(code) — executes Python code in the Pyodide environment",
+    "controller.getCodeCompletion(code, position) — language-server code completion",
+    "stlite share <path> — CLI: encode project as a share.stlite.net URL",
+    "stlite html <path> — CLI: export project as a self-contained HTML file",
+    "stlite web <path> — CLI: package project as an offline-capable web directory",
+    "stlite desktop <path> — CLI: package project as an Electron desktop artifact"
+  ]
+}

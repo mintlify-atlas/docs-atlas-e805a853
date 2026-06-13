@@ -1,0 +1,307 @@
+---
+title: "@stlite/react API Reference: Components, Kernel, and Hooks"
+sidebarTitle: "API Reference"
+description: "Full API reference for @stlite/react: StliteApp, StliteAppWithToast components, createKernel() factory, useKernel() hook, and StliteKernelOptions type."
+---
+
+`@stlite/react` exports two React components (`StliteApp` and `StliteAppWithToast`), a kernel factory function (`createKernel`), a lifecycle hook (`useKernel`), and all TypeScript types from `@stlite/kernel`. Everything documented here is the stable public API as of `@stlite/react` v1.7.0.
+
+---
+
+## createKernel(options)
+
+```ts
+import { createKernel } from '@stlite/react';
+
+const kernel = createKernel(options: StliteKernelOptions): StliteKernel;
+```
+
+Creates and starts a `StliteKernel` — the Pyodide-backed Web Worker that executes your Streamlit app in the browser. The returned kernel instance is passed to `StliteApp` or `StliteAppWithToast` as the `kernel` prop.
+
+Call `createKernel` **outside** the React component tree (at module level) so the kernel is created once per page load, not once per render. If you need the kernel's lifetime to match a component's lifecycle, use [`useKernel`](#usekernel) instead.
+
+When you are done with a kernel, call `kernel.dispose()` to terminate the underlying worker.
+
+### Options (StliteKernelOptions)
+
+<ParamField path="entrypoint" type="string" required>
+  The path on the Pyodide virtual file system (Emscripten FS) that Streamlit will run as its entry point. Must match a key in the `files` map or a path unpacked from `archives`.
+
+  ```ts
+  entrypoint: 'streamlit_app.py'
+  ```
+</ParamField>
+
+<ParamField path="files" type="Record<string, EmscriptenFile | EmscriptenFileUrl>" required>
+  A map of virtual file paths to their contents. Use `EmscriptenFile` to provide inline content, or `EmscriptenFileUrl` to have the kernel fetch a file by URL at startup.
+
+  ```ts
+  files: {
+    'streamlit_app.py': {
+      data: 'import streamlit as st\nst.write("Hello!")',
+    },
+    'data.csv': {
+      url: 'https://example.com/data.csv',
+    },
+  }
+  ```
+</ParamField>
+
+<ParamField path="archives" type="Array<PyodideArchive | PyodideArchiveUrl>" required>
+  A list of archives to unpack into the virtual file system at startup. Each archive can be provided as an in-memory buffer (`PyodideArchive`) or fetched from a URL (`PyodideArchiveUrl`). Pass an empty array if you have no archives.
+</ParamField>
+
+<ParamField path="requirements" type="string[]" required>
+  Python packages to install via `micropip` during kernel boot, in addition to the built-in Streamlit and stlite-lib packages. Pass an empty array if no additional packages are needed.
+
+  ```ts
+  requirements: ['pandas', 'altair']
+  ```
+</ParamField>
+
+<ParamField path="prebuiltPackageNames" type="string[]" required>
+  Packages to install via `pyodide.loadPackage()` rather than `micropip`. A small set of packages (such as `openssl`) can only be installed through this path. Pass an empty array if none are needed.
+</ParamField>
+
+<ParamField path="wheelUrls" type="{ stliteLib: string; streamlit: string }">
+  The URLs of the bundled `stlite-lib` and `streamlit` Python wheel files. In a Vite project, import this value from `@stlite/react/vite-utils` — the Vite plugin resolves the hashed asset URLs at build time.
+
+  ```ts
+  import { wheelUrls } from '@stlite/react/vite-utils';
+
+  createKernel({ ..., wheelUrls });
+  ```
+</ParamField>
+
+<ParamField path="pyodideUrl" type="string">
+  The URL of the `pyodide.js` (or `pyodide.mjs`) entry point to load in the worker. If omitted, the default bundled version is used. Override this to pin a specific Pyodide release or load from a CDN.
+</ParamField>
+
+<ParamField path="streamlitConfig" type="StreamlitConfig">
+  Streamlit configuration key-value pairs, equivalent to the options you would pass to `streamlit run` as `--` flags. Keys use dot-notation.
+
+  ```ts
+  streamlitConfig: {
+    'logger.level': 'warning',
+    'theme.primaryColor': '#f63366',
+  }
+  ```
+</ParamField>
+
+<ParamField path="idbfsMountpoints" type="string[]">
+  File system paths inside the Pyodide FS to back with IndexedDB via Emscripten's IDBFS. Data written to these paths persists across page reloads.
+
+  ```ts
+  idbfsMountpoints: ['/data']
+  ```
+</ParamField>
+
+<ParamField path="sharedWorker" type="boolean">
+  Set to `true` to use a `SharedWorker` instead of a dedicated `Worker`. Useful when multiple browser contexts (tabs, iframes) need to share a single kernel instance. Defaults to `false`.
+</ParamField>
+
+<ParamField path="workerType" type="'classic' | 'module'">
+  The [worker type](https://developer.mozilla.org/en-US/docs/Web/API/Worker/Worker#type) passed to the `Worker` constructor. `createKernel` defaults this to `'module'` because Vite serves worker scripts as ES modules in development without bundling. You should not need to change this in a standard Vite setup.
+</ParamField>
+
+<ParamField path="env" type="Record<string, string>">
+  Environment variables to expose inside the Pyodide Python environment. Keys must start with a letter or underscore and contain only letters, digits, or underscores.
+
+  ```ts
+  env: { API_BASE_URL: 'https://api.example.com' }
+  ```
+</ParamField>
+
+<ParamField path="languageServer" type="boolean">
+  Set to `true` to enable Python code completion. This loads additional packages into the Pyodide environment and makes `kernel.getCodeCompletion()` available. Defaults to `false`.
+</ParamField>
+
+---
+
+## StliteApp component
+
+```tsx
+import { StliteApp } from '@stlite/react';
+
+<StliteApp kernel={kernel} />
+```
+
+Renders the Streamlit application UI connected to the provided `kernel`. This component does **not** include any toast notification overlay — it only renders the Streamlit frontend. Use this when you want to manage notifications yourself or prefer no loading toasts at all.
+
+### Props
+
+<ParamField path="kernel" type="StliteKernel" required>
+  A kernel instance returned by `createKernel` or `useKernel`. The component subscribes to the kernel's message bus and renders the Streamlit UI inside a Styletron-scoped style provider.
+</ParamField>
+
+<ParamField path="styleNonce" type="string">
+  A CSP nonce value injected into inline `<style>` tags generated by Styletron. Use this when your Content Security Policy requires a nonce for inline styles.
+</ParamField>
+
+<ParamField path="disableDocumentStyles" type="boolean">
+  Set to `true` to prevent the component from injecting global document-level styles. Useful when embedding the Streamlit UI inside a shadow DOM or a tightly scoped container.
+</ParamField>
+
+---
+
+## StliteAppWithToast component
+
+```tsx
+import { StliteAppWithToast } from '@stlite/react';
+
+<StliteAppWithToast kernel={kernel} />
+```
+
+Wraps `StliteApp` with a [react-toastify](https://fkhadra.github.io/react-toastify/) toast overlay. Toasts are shown for:
+
+- **Load progress** — messages emitted while Pyodide and Streamlit are initialising (`loadProgress` and `loadFinished` kernel events).
+- **Load errors** — shown when the kernel encounters an error during startup (`loadError` kernel event).
+- **Module auto-load** — shown when Streamlit auto-installs packages detected in the running script (`moduleAutoLoad` kernel event).
+- **File and environment operations** — install, writeFile, renameFile, unlink, readFile, and reboot events always generate toasts and cannot be individually disabled.
+
+This is the recommended component for most applications.
+
+### Props
+
+<ParamField path="kernel" type="StliteKernel" required>
+  A kernel instance returned by `createKernel` or `useKernel`.
+</ParamField>
+
+<ParamField path="disableProgressToasts" type="boolean">
+  Set to `true` to suppress toasts for `loadProgress` and `loadFinished` kernel events. The Streamlit app will still load normally — progress information will just not be surfaced to the user.
+</ParamField>
+
+<ParamField path="disableErrorToasts" type="boolean">
+  Set to `true` to suppress toasts for `loadError` kernel events. Errors will still be thrown and logged; they simply will not trigger a visible notification.
+</ParamField>
+
+<ParamField path="disableModuleAutoLoadToasts" type="boolean">
+  Set to `true` to suppress toasts for `moduleAutoLoad` kernel events. Streamlit will still auto-install detected packages; the user just will not see the toast notification.
+</ParamField>
+
+<ParamField path="styleNonce" type="string">
+  Passed through to the underlying `StliteApp`. A CSP nonce for inline styles.
+</ParamField>
+
+<ParamField path="disableDocumentStyles" type="boolean">
+  Passed through to the underlying `StliteApp`. Prevents global document-level style injection.
+</ParamField>
+
+---
+
+## useKernel()
+
+```ts
+import { useKernel } from '@stlite/react';
+
+const kernel = useKernel(options: StliteKernelOptions): StliteKernel | null;
+```
+
+A React hook that creates a `StliteKernel` on mount and disposes it automatically when the component unmounts. Returns `null` until the kernel object has been created (i.e., during the initial render before the effect runs).
+
+`options` is **only read on mount**. Changing the `options` value on subsequent renders has no effect — the kernel is not re-created. If you need to respond to changing configuration, dispose the current kernel and create a new one.
+
+**When to use `useKernel` vs `createKernel`:**
+
+- Use `createKernel` at module level when the kernel should live for the entire page lifetime (the most common case).
+- Use `useKernel` inside a component when the kernel's lifetime should be scoped to that component — for example, in a modal or a tab panel that may be unmounted and remounted.
+
+```tsx
+import { useKernel, StliteAppWithToast } from '@stlite/react';
+import { wheelUrls } from '@stlite/react/vite-utils';
+import '@stlite/react/stlite.css';
+
+function StreamlitPanel() {
+  const kernel = useKernel({
+    entrypoint: 'app.py',
+    files: { 'app.py': { data: 'import streamlit as st\nst.write("Hi!")' } },
+    archives: [],
+    requirements: [],
+    prebuiltPackageNames: [],
+    wheelUrls,
+  });
+
+  if (!kernel) return <p>Loading kernel…</p>;
+
+  return <StliteAppWithToast kernel={kernel} />;
+}
+```
+
+---
+
+## Type exports
+
+All types below are re-exported from `@stlite/kernel` via `@stlite/react`, so you can import them from `@stlite/react` directly.
+
+### EmscriptenFile
+
+```ts
+interface EmscriptenFile {
+  data: string | ArrayBufferView;
+  opts?: Record<string, string>;
+}
+```
+
+Represents a file with inline content to mount in the Pyodide virtual file system. `data` can be a plain string (for text files) or an `ArrayBufferView` (for binary files). The optional `opts` are passed to Emscripten's `FS.writeFile`.
+
+### EmscriptenFileUrl
+
+```ts
+interface EmscriptenFileUrl {
+  url: string;
+  opts?: Record<string, string>;
+}
+```
+
+Represents a file to fetch from a remote URL and mount in the Pyodide virtual file system at kernel startup. `opts` are passed to Emscripten's `FS.writeFile`.
+
+### PyodideArchive
+
+```ts
+interface PyodideArchive {
+  buffer: Parameters<PyodideInterface['unpackArchive']>[0];
+  format: Parameters<PyodideInterface['unpackArchive']>[1];
+  options?: Parameters<PyodideInterface['unpackArchive']>[2];
+}
+```
+
+An archive provided as an in-memory buffer to be unpacked into the Pyodide FS via `pyodide.unpackArchive()`.
+
+### PyodideArchiveUrl
+
+```ts
+interface PyodideArchiveUrl {
+  url: string;
+  format: Parameters<PyodideInterface['unpackArchive']>[1];
+  options?: Parameters<PyodideInterface['unpackArchive']>[2];
+}
+```
+
+An archive fetched from a URL and unpacked into the Pyodide FS at kernel startup.
+
+### StreamlitConfig
+
+```ts
+interface StreamlitConfig {
+  [key: string]: string | number | boolean | null | undefined;
+}
+```
+
+A dictionary of Streamlit configuration options. Keys use dot-notation (e.g., `'theme.primaryColor'`) and values must be primitive types convertible from JavaScript to Python.
+
+### MicropipInstallOptions
+
+```ts
+interface MicropipInstallOptions {
+  keep_going?: boolean;
+  deps?: boolean;
+  credentials?: string | null;
+  pre?: boolean;
+  index_urls?: string[] | string | null;
+  constraints?: string[] | null;
+  reinstall?: boolean;
+  verbose?: boolean | number | null;
+}
+```
+
+Options forwarded to [`micropip.install()`](https://micropip.pyodide.org/en/stable/project/api.html#micropip.install) when installing packages at runtime. Corresponds exactly to micropip's install keyword arguments.

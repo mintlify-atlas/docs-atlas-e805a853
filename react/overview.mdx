@@ -1,0 +1,60 @@
+---
+title: "@stlite/react: Streamlit as a React Component"
+sidebarTitle: "Overview"
+description: "@stlite/react provides StliteApp, StliteAppWithToast, createKernel, and useKernel to embed Pyodide-backed Streamlit apps in any React project."
+---
+
+`@stlite/react` is the React binding layer for [stlite](https://github.com/whitphx/stlite) — it connects the Pyodide-backed Streamlit kernel to the Streamlit frontend UI and exposes everything as ordinary React components and hooks. Use it when you are building a React application and want to embed a fully in-browser Streamlit app as a first-class component, with access to the Vite build pipeline, tree-shaking, and normal React state management.
+
+## What the package exports
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `StliteApp` | React component | Renders the Streamlit UI connected to a kernel instance. No toast notifications. |
+| `StliteAppWithToast` | React component | Same as `StliteApp`, but also renders a toast overlay that reports load progress, errors, and module auto-load events. Recommended for most apps. |
+| `createKernel` | Factory function | Creates and starts a `StliteKernel` instance (the Pyodide worker) from a `StliteKernelOptions` configuration object. |
+| `useKernel` | React hook | Creates a kernel tied to the component lifecycle — the kernel is started on mount and automatically disposed on unmount. |
+
+All TypeScript types from `@stlite/kernel` (such as `StliteKernelOptions`, `EmscriptenFile`, `StreamlitConfig`, etc.) are re-exported from `@stlite/react` so you only need a single import path.
+
+## @stlite/react vs @stlite/browser
+
+Both packages embed a Streamlit app entirely in the browser with no Python server, but they target different integration scenarios.
+
+**Use `@stlite/react` when:**
+- You are building a React application (created with Vite, Create React App, Next.js, etc.).
+- You need tight component-level integration — for example, passing a kernel as a prop, conditionally rendering the Streamlit UI, or managing the kernel's lifetime with `useKernel`.
+- You want to bundle everything through a Vite build pipeline, with proper code splitting and asset hashing.
+- You are writing TypeScript and want full type safety across your app and the stlite API.
+
+**Use `@stlite/browser` when:**
+- You are embedding a Streamlit app in a plain HTML page with a `<script>` tag.
+- You do not have (or want) a build step.
+- You want the simplest possible integration — drop in a script tag, call `stlite.mount()`, done.
+
+<Note>
+  `@stlite/react` requires the `stliteReactPlugin` Vite plugin (imported from `@stlite/react/vite-plugin`) to correctly bundle the Streamlit wheel files and Pyodide assets. Without it the kernel will be unable to locate the wheels at runtime. See the [Quickstart](/react/quickstart) for the required `vite.config.ts` setup.
+</Note>
+
+## Installation
+
+Install the package and its peer dependencies:
+
+```bash
+npm install @stlite/react react react-dom
+```
+
+<Tip>
+  `react` and `react-dom` are peer dependencies. If your project already has them installed at `^18.2.0` or later you do not need to install them again.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/react/quickstart">
+    Build your first Vite + React app with a Streamlit component embedded in five steps.
+  </Card>
+  <Card title="API Reference" icon="code" href="/react/api-reference">
+    Full reference for `StliteApp`, `StliteAppWithToast`, `createKernel`, `useKernel`, and all exported types.
+  </Card>
+</CardGroup>

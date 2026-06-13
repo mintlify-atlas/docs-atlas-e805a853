@@ -1,0 +1,218 @@
+---
+title: "Virtual File System in Stlite: MEMFS, IDBFS, and File Operations"
+sidebarTitle: "File System"
+description: "Stlite runs on Pyodide's virtual Linux-like file system isolated from the host OS. Learn how to mount files, use IndexedDB persistence, and access the FS from Python."
+---
+
+Stlite executes your Python code inside [Pyodide](https://pyodide.org/), which provides its own Linux-like virtual file system powered by [Emscripten](https://emscripten.org/docs/api_reference/Filesystem-API.html). This file system lives entirely in the browser — it is completely isolated from the host operating system. Understanding how it works helps you load data into your app, persist state across reloads, and manipulate files at runtime.
+
+## How the virtual file system works
+
+Pyodide's file system looks and behaves like a standard Linux directory tree. Paths like `/home/pyodide/`, `/tmp/`, and `/mnt/` all exist within the browser's memory. Because the file system is isolated from the host OS, any Python file operation — `open()`, `os.listdir()`, `shutil.copy()`, etc. — operates on this virtual tree, not on actual files on the user's computer.
+
+```python
+# This reads from the virtual FS, not the user's real disk
+with open("/home/pyodide/data.csv", "r") as f:
+    content = f.read()
+```
+
+**Default file system: MEMFS.** The root `/` and standard directories (including the home directory) are mounted with [`MEMFS`](https://emscripten.org/docs/api_reference/Filesystem-API.html#memfs) — an in-memory, ephemeral file system. Any files written to a `MEMFS`-backed path are lost when the page is reloaded or the browser tab is closed.
+
+<Note>
+  File system paths in the virtual FS use forward slashes (`/`) regardless of
+  the host operating system, following Linux conventions.
+</Note>
+
+## Mounting files at startup
+
+The `mount()` function and the `<streamlit-app>` tag both provide options to pre-populate the virtual file system before your Python code runs.
+
+### `files` option — string, binary, or URL
+
+Pass an object whose keys are virtual file paths and whose values are the file contents. Three value shapes are supported:
+
+**String or binary data** — inline the content directly:
+
+```js
+mount(
+  {
+    files: {
+      "streamlit_app.py": "import streamlit as st\nst.write('Hello!')",
+      "data/sample.bin": new Uint8Array([0x00, 0x01, 0x02, 0x03]),
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+**URL reference** — fetch a remote file and write it to the virtual FS at startup:
+
+```js
+mount(
+  {
+    files: {
+      "data/cities.csv": {
+        url: "https://example.com/datasets/cities.csv",
+      },
+      "assets/logo.png": {
+        url: "./assets/logo.png", // relative URLs are also accepted
+      },
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+**Advanced with `opts`** — pass additional options forwarded to Emscripten's [`FS.writeFile(path, data, opts)`](https://emscripten.org/docs/api_reference/Filesystem-API.html#FS.writeFile):
+
+```js
+mount(
+  {
+    files: {
+      "config/settings.txt": {
+        data: "debug=true",
+        opts: { encoding: "utf8" },
+      },
+      "data/remote.csv": {
+        url: "https://example.com/data.csv",
+        opts: { encoding: "utf8" },
+      },
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+For a complete reference of all `mount()` options, see [/browser/files-and-archives](/browser/files-and-archives).
+
+### `archives` option — unpack zip files
+
+Use the `archives` option to download an archive (e.g. a zip file), unpack it, and mount all its contents into the virtual file system in one step. This is useful for loading multiple related files such as a dataset directory.
+
+Each entry is passed to Pyodide's [`unpackArchive(buffer, format, options)`](https://pyodide.org/en/stable/usage/api/js-api.html#pyodide.unpackArchive) internally.
+
+```js
+mount(
+  {
+    archives: [
+      {
+        url: "./data-bundle.zip",
+        format: "zip",
+        options: {},
+      },
+    ],
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import streamlit as st
+import pandas as pd
+
+df = pd.read_csv("data/records.csv")
+st.dataframe(df)
+`,
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+<Tip>
+  You can also pass the archive binary directly instead of a URL by using the
+  `buffer` field (a `Uint8Array`) in place of `url`.
+</Tip>
+
+## Persisting files with IndexedDB (IDBFS)
+
+By default, every MEMFS-backed write is lost on page reload. To persist data across reloads and even across browser sessions, Stlite supports mounting directories with [`IDBFS`](https://emscripten.org/docs/api_reference/Filesystem-API.html#filesystem-api-idbfs) — Emscripten's IndexedDB-backed file system.
+
+Files written to an IDBFS-mounted path are stored in the browser's [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) and survive page reloads.
+
+### Enabling IDBFS in `@stlite/browser`
+
+Pass the `idbfsMountpoints` option to `mount()` with an array of virtual FS paths that should be backed by IndexedDB:
+
+```js
+mount(
+  {
+    idbfsMountpoints: ["/mnt"], // back this directory with IndexedDB
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import datetime
+import streamlit as st
+
+# Append a timestamp on every run — persists across reloads
+with open("/mnt/log.txt", "a") as f:
+    f.write(f"{datetime.datetime.now()}\\n")
+
+# Read back all recorded timestamps
+with open("/mnt/log.txt", "r") as f:
+    st.code(f.read())
+`,
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+Running this app and reloading the page will show an ever-growing list of timestamps — the `/mnt/` directory persists in IndexedDB between sessions.
+
+<Note>
+  IDBFS is tied to the browser origin. Clearing the browser's site data (cache,
+  storage) will erase IndexedDB contents, including IDBFS-persisted files.
+</Note>
+
+## Runtime file operations (controller methods)
+
+The object returned by `mount()` exposes methods for reading and writing files in the virtual FS at runtime — without needing to remount the app. These are useful for dynamically pushing data into a running app from the JavaScript side.
+
+### `writeFile(path, data, opts?)`
+
+Write a file to the virtual FS. `data` can be a `string` or an `ArrayBufferView` (e.g. `Uint8Array`).
+
+```js
+const controller = mount(options, document.getElementById("root"));
+
+// Write a text file
+await controller.writeFile("data/config.json", JSON.stringify({ key: "value" }));
+
+// Write binary data
+await controller.writeFile("data/image.png", new Uint8Array(pngBytes));
+```
+
+### `readFile(path, opts?)`
+
+Read a file from the virtual FS. Returns the contents as a `Uint8Array` (binary) or `string`, depending on the `opts` passed.
+
+```js
+const bytes = await controller.readFile("data/output.csv");
+const text = await controller.readFile("data/output.csv", { encoding: "utf8" });
+```
+
+### `renameFile(oldPath, newPath)`
+
+Move or rename a file within the virtual FS.
+
+```js
+await controller.renameFile("data/temp.csv", "data/final.csv");
+```
+
+### `unlink(path)`
+
+Delete a file from the virtual FS.
+
+```js
+await controller.unlink("data/temp.csv");
+```
+
+<Warning>
+  All runtime file operations affect the in-memory (MEMFS) state unless the
+  path is inside an IDBFS-mounted directory. Changes to MEMFS paths are lost on
+  page reload.
+</Warning>
+
+## Desktop apps: local file access
+
+When building a desktop application with `@stlite/desktop`, Stlite can mount real directories from the local file system using Electron's Node.js-backed NODEFS instead of MEMFS. This gives your Python code direct read/write access to actual files on the user's disk.
+
+For details, see the [Desktop: File System](/desktop/file-system) guide.

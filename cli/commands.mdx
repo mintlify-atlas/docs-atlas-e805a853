@@ -1,0 +1,171 @@
+---
+title: "stlite CLI Command Reference: share, html, web, desktop"
+sidebarTitle: "Commands"
+description: "Reference for all stlite CLI commands: share encodes projects as URLs, html exports self-contained files, web creates offline bundles, desktop builds Electron artifacts."
+---
+
+The `stlite` CLI exposes four commands — `share`, `html`, `web`, and `desktop` — each converting a local Streamlit project into a different deployment format. All commands take a project directory as their first positional argument.
+
+---
+
+## stlite share \<path\>
+
+`stlite share` serializes the entire project (source files, binary assets, and requirements) as a protobuf message, base64url-encodes it, and embeds it in the hash fragment of a URL that opens on [share.stlite.net](https://share.stlite.net/). No file hosting is required — the app lives entirely inside the URL.
+
+```bash
+stlite share ./my-project
+# https://share.stlite.net/#!CgZhcHAucHkS...
+```
+
+<Note>
+  Pass `--editable` to produce an editor URL at
+  `https://edit.share.stlite.net/` instead of the read-only viewer URL.
+</Note>
+
+### Options
+
+<ParamField path="path" type="string" required>
+  Path to the Streamlit project directory.
+</ParamField>
+
+<ParamField query="--entrypoint" type="string" default="app.py">
+  Entrypoint script filename, relative to `<path>`. Defaults to `app.py`.
+</ParamField>
+
+<ParamField query="--requirements" type="string">
+  Path to a `requirements.txt` file. Defaults to `<path>/requirements.txt` if
+  that file is present.
+</ParamField>
+
+<ParamField query="--editable" type="boolean" default="false">
+  Emit an editor URL (`https://edit.share.stlite.net/`) instead of the
+  read-only viewer URL (`https://share.stlite.net/`).
+</ParamField>
+
+---
+
+## stlite html \<path\>
+
+`stlite html` generates a single self-contained `.html` file that loads `@stlite/browser` from jsDelivr and embeds all project source files inline — text files as JavaScript template literals, binary files as base64. The result can be opened directly in a browser without any server.
+
+```bash
+stlite html ./my-project -o app.html
+```
+
+By default the output is written to **stdout**; pass `-o` to write to a file instead.
+
+### Options
+
+<ParamField path="path" type="string" required>
+  Path to the Streamlit project directory.
+</ParamField>
+
+<ParamField query="--entrypoint" type="string" default="app.py">
+  Entrypoint script filename, relative to `<path>`. Defaults to `app.py`.
+</ParamField>
+
+<ParamField query="--requirements" type="string">
+  Path to a `requirements.txt` file. Defaults to `<path>/requirements.txt` if
+  that file is present.
+</ParamField>
+
+<ParamField query="-o, --out" type="string">
+  Write the HTML output to this file path instead of stdout.
+</ParamField>
+
+<ParamField query="--runtime-version" type="string">
+  Pin the version of `@stlite/browser` the exported page loads from jsDelivr.
+  Defaults to the version of `@stlite/browser` bundled with the CLI at build
+  time, keeping it in lockstep with the CLI release.
+</ParamField>
+
+---
+
+## stlite web \<path\>
+
+`stlite web` packages the project into a multi-file directory that runs entirely offline on any HTTP server. The output bundles the `@stlite/browser` single-page application, the Pyodide runtime (`.mjs`, `.asm`, `.wasm`, and lock files), and a pre-vendored site-packages snapshot — so users never fetch anything from a CDN at boot.
+
+```bash
+stlite web ./my-project -o ./out
+python3 -m http.server -d ./out
+# Serves the app at http://localhost:8000/
+```
+
+<Note>
+  `stlite web` is **Node.js only**. It is not available in the `stlite-cli`
+  PyPI package because it relies on Pyodide-in-Node tooling.
+</Note>
+
+### Options
+
+<ParamField path="path" type="string" required>
+  Path to the Streamlit project directory.
+</ParamField>
+
+<ParamField query="--entrypoint" type="string" default="app.py">
+  Entrypoint script filename, relative to `<path>`. Defaults to `app.py`.
+</ParamField>
+
+<ParamField query="--requirements" type="string">
+  Path to a `requirements.txt` file. Defaults to `<path>/requirements.txt` if
+  that file is present.
+</ParamField>
+
+<ParamField query="-o, --out" type="string" default="./build">
+  Output directory for the packaged web app. Defaults to `./build`.
+</ParamField>
+
+<ParamField query="--pyodideSource" type="string">
+  Base URL or local path for Pyodide files (`pyodide-lock.json`, prebuilt
+  wheels). Defaults to the Pyodide version bundled with the CLI.
+</ParamField>
+
+---
+
+## stlite desktop \<path\>
+
+`stlite desktop` packages the project into a Stlite Desktop artifact — a multi-file directory plus a `stlite-manifest.json` — that is consumed by `electron-builder` to produce a standalone Electron application. It is the drop-in replacement for the deprecated `dump-stlite-desktop-artifacts` binary from `@stlite/desktop`.
+
+Unlike `share`, `html`, and `web`, the desktop command does **not** read `--entrypoint` or `--requirements` flags from the command line. Instead it reads them from the `stlite.desktop` field in the project's `package.json`, alongside additional manifest options (`embed`, `nodeJsWorker`, `idbfsMountpoints`, `nodefsMountpoints`, `appMenu`).
+
+```bash
+stlite desktop ./my-project -o ./dist/stlite
+```
+
+<Note>
+  `stlite desktop` is **Node.js only**. It is not available in the `stlite-cli`
+  PyPI package.
+</Note>
+
+<Note>
+  For the full list of fields supported under `stlite.desktop` in
+  `package.json`, see the [Desktop Configuration](/desktop/configuration)
+  reference.
+</Note>
+
+### Options
+
+<ParamField path="path" type="string" required>
+  Path to the project directory. The directory must contain a `package.json`
+  with a `stlite.desktop` field that declares at minimum `files` (array of
+  strings) and `entrypoint` (string).
+</ParamField>
+
+<ParamField query="-o, --out" type="string" default="./build">
+  Output directory for the packaged desktop artifact. Defaults to `./build`.
+</ParamField>
+
+<ParamField query="--pyodideSource" type="string">
+  Base URL or local path for Pyodide files (`pyodide-lock.json`, prebuilt
+  wheels). Defaults to the Pyodide version bundled with the CLI.
+</ParamField>
+
+---
+
+## Common positional argument
+
+<ParamField path="path" type="string" required>
+  The path to the local Streamlit project directory to convert. Passed as the
+  first positional argument to every command, e.g.
+  `stlite share ./my-project`.
+</ParamField>

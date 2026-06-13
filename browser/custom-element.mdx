@@ -1,0 +1,192 @@
+---
+title: "<streamlit-app> Custom Element API for Stlite"
+sidebarTitle: "Custom Element"
+description: "Use the <streamlit-app> HTML custom element to embed Stlite apps declaratively. Supports inline Python, multi-file apps, requirements, and SharedWorker mode."
+---
+
+The `<streamlit-app>` custom element lets you embed a Streamlit app entirely in HTML markup without writing any JavaScript. Once the `@stlite/browser` script is loaded, the browser automatically detects the tag, parses its children, and mounts the app onto the page. Under the hood it is a thin wrapper around the [`mount()` function](/browser/mount-api), so every feature available in `mount()` can also be expressed through the custom element syntax.
+
+## Basic usage — inline Python
+
+Write your Python code directly as the text content of `<streamlit-app>`. The runtime treats the content as the main script (`streamlit_app.py`) and runs it immediately.
+
+```html
+<streamlit-app>
+  import streamlit as st
+
+  name = st.text_input('Your name')
+  st.write("Hello,", name or "world")
+</streamlit-app>
+```
+
+## Loading from a URL
+
+Use the `src` attribute to load the main script from an external file. Both absolute and relative URLs are accepted. When `src` is present, any inline text content is ignored.
+
+```html
+<!-- Load the entry point from a relative URL -->
+<streamlit-app src="./app.py"></streamlit-app>
+
+<!-- Load from an absolute URL -->
+<streamlit-app src="https://example.com/myapp/app.py"></streamlit-app>
+```
+
+<Note>
+  The filename is inferred from the URL path (e.g. `app.py` from `/path/to/app.py`). If the URL does not end in `.py`, the entry point falls back to `streamlit_app.py`.
+</Note>
+
+## Multi-file apps — `<app-file>`
+
+For apps that span multiple Python files, use `<app-file>` child elements. Each `<app-file>` must have a `name` attribute. Mark exactly one file as the entry point with the `entrypoint` attribute — the runtime will call `streamlit run` on that file.
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+    from utils import greet
+
+    name = st.text_input("Your name")
+    st.write(greet(name))
+  </app-file>
+
+  <app-file name="utils.py">
+    def greet(name: str) -> str:
+        return f"Hello, {name or 'world'}!"
+  </app-file>
+</streamlit-app>
+```
+
+### Adding a `config.toml` file
+
+Pass `.streamlit/config.toml` as an `<app-file>` to configure Streamlit settings declaratively.
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    size = st.slider("Sample size", 100, 1000)
+    arr = np.random.normal(1, 1, size=size)
+    fig, ax = plt.subplots()
+    ax.hist(arr, bins=20)
+    st.pyplot(fig)
+  </app-file>
+
+  <app-file name=".streamlit/config.toml">
+    [client]
+    toolbarMode = "viewer"
+  </app-file>
+
+  <app-requirements>
+    matplotlib
+  </app-requirements>
+</streamlit-app>
+```
+
+### Loading a file from a URL via `<app-file url="...">`
+
+`<app-file>` also accepts a `url` attribute to fetch the file content from a remote URL instead of embedding it inline.
+
+```html
+<streamlit-app src="./main.py">
+  <app-file name="utils.py" url="./utils.py"></app-file>
+  <app-requirements>
+    pandas
+  </app-requirements>
+</streamlit-app>
+```
+
+## Installing packages — `<app-requirements>`
+
+List the Python packages your app needs inside an `<app-requirements>` tag — one package per line, using the same syntax as `requirements.txt`. Multiple `<app-requirements>` blocks are merged together.
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+    import pandas as pd
+    import numpy as np
+
+    st.dataframe(pd.DataFrame(np.random.randn(10, 3), columns=["A", "B", "C"]))
+  </app-file>
+
+  <app-requirements>
+    pandas
+    numpy
+  </app-requirements>
+</streamlit-app>
+```
+
+## Loading archives — `<app-archive>`
+
+Use `<app-archive>` to fetch a zip or tar archive, unpack it, and mount its contents onto the virtual file system. The `url` and `format` attributes are both required.
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+    import os
+
+    files = os.listdir("/data")
+    st.write(files)
+  </app-file>
+
+  <app-archive url="./data.zip" format="zip"></app-archive>
+</streamlit-app>
+```
+
+## SharedWorker mode
+
+By default every `<streamlit-app>` element runs its Python environment in a dedicated worker. If you embed many apps on the same page, this can consume significant memory. Add the `shared-worker` boolean attribute to run all apps in a single shared worker instead.
+
+```html
+<streamlit-app shared-worker>
+  import streamlit as st
+  st.write("App 1")
+</streamlit-app>
+
+<streamlit-app shared-worker>
+  import streamlit as st
+  st.write("App 2")
+</streamlit-app>
+```
+
+<Warning>
+  In SharedWorker mode the Python environment — including installed packages and
+  global state — is shared across all apps running in the worker. Each app gets
+  its own home directory (`/home/pyodide/<id>`), but files elsewhere in the
+  virtual file system are visible to all apps. Some browsers (e.g. Chrome for
+  Android) do not support SharedWorker; Stlite automatically falls back to
+  per-app workers in those cases.
+</Warning>
+
+## Multipage apps
+
+Provide multiple page scripts under `pages/` to create a multipage Streamlit app.
+
+```html
+<streamlit-app>
+  <app-file name="👋_Hello.py" entrypoint>
+    import streamlit as st
+
+    st.set_page_config(page_title="Hello")
+    st.title("Main page")
+  </app-file>
+
+  <app-file name="pages/1_⭐️_Page1.py">
+    import streamlit as st
+
+    st.set_page_config(page_title="Page1")
+    st.title("Page 1")
+  </app-file>
+
+  <app-file name="pages/2_🎈_Page2.py">
+    import streamlit as st
+
+    st.set_page_config(page_title="Page2")
+    st.title("Page 2")
+  </app-file>
+</streamlit-app>
+```

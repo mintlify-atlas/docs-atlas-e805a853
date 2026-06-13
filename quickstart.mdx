@@ -1,47 +1,188 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Stlite in Your Browser"
+sidebarTitle: "Quickstart"
+description: "Embed your first Stlite Streamlit app in a static HTML page in under 5 minutes using the @stlite/browser CDN script tag."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+In this guide you will create a fully interactive Streamlit app that runs entirely in the browser — no Python installation, no server, and no build step. By the end you will have a single `.html` file you can open locally or host on any static file server.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+<Step title="Create an HTML file">
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+Create a new file called `app.html` and add the standard HTML boilerplate. Load the Stlite JavaScript module and its companion stylesheet from the jsDelivr CDN using `<script>` and `<link>` tags:
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>My Stlite App</title>
+
+    <!-- Stlite stylesheet -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css"
+    />
+
+    <!-- Stlite JavaScript module -->
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js"
+    ></script>
+  </head>
+  <body>
+    <!-- Your app goes here — see the next step -->
+  </body>
+</html>
+```
+
+<Note>
+  The CDN URLs above are pinned to version `0.85.1`. Stlite recommends using a pinned version rather than the unversioned `latest` URL, because the API may change between releases without backward compatibility.
+</Note>
+
+</Step>
+
+<Step title="Write your Streamlit app">
+
+Add a `<streamlit-app>` tag inside `<body>` and write your Python code directly inside it. Stlite automatically detects the tag and boots the Streamlit runtime:
+
+```html
+<body>
+  <streamlit-app>
+    import streamlit as st
+
+    name = st.text_input("Your name")
+    st.write("Hello,", name or "world")
+  </streamlit-app>
+</body>
+```
+
+The content of the `<streamlit-app>` tag is treated as a Python script — exactly what you would put in a `streamlit_app.py` file. The full Streamlit API is available.
+
+</Step>
+
+<Step title="Open in browser">
+
+Save the file and open it directly in any modern web browser — no web server required:
+
+- **macOS / Linux:** double-click `app.html` in Finder / your file manager, or run `open app.html` in the terminal.
+- **Windows:** double-click `app.html` in Explorer.
+- **Any platform:** drag the file into an open browser window.
+
+Stlite downloads the Pyodide WebAssembly runtime from the CDN on the first load (this may take a few seconds), then executes your Python script entirely in the browser. After the initial load, the app responds instantly without any network round-trips.
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  You can also host the file on GitHub Pages, Netlify, Vercel, or any other static hosting service — no server-side runtime is needed because all computation happens in the visitor's browser.
 </Tip>
+
+</Step>
+
+<Step title="Install packages (optional)">
+
+If your app needs third-party Python packages, add an `<app-requirements>` tag inside `<streamlit-app>`. Stlite installs the listed packages at startup via `micropip` before running your script:
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    size = st.slider("Sample size", 100, 1000)
+    arr = np.random.normal(1, 1, size=size)
+    fig, ax = plt.subplots()
+    ax.hist(arr, bins=20)
+    st.pyplot(fig)
+  </app-file>
+
+  <app-requirements>
+    matplotlib
+  </app-requirements>
+</streamlit-app>
+```
+
+The `<app-file>` tag lets you name the file (here `streamlit_app.py`) and mark it as the entrypoint. The `<app-requirements>` tag lists one package per line — the same format as a `requirements.txt` file.
+
+<Warning>
+  Only packages that are compatible with the Pyodide environment can be installed. Packages that include binary extensions (C, Rust, Fortran, etc.) must have been pre-compiled for Pyodide. See the [Pyodide FAQ](https://pyodide.org/en/stable/usage/faq.html#why-can-t-micropip-find-a-pure-python-wheel-for-a-package) for details.
+</Warning>
+
+</Step>
+
+</Steps>
+
+## Full working example
+
+Here is the complete HTML file from the steps above, combining all the pieces:
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>My Stlite App</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css"
+    />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js"
+    ></script>
+  </head>
+  <body>
+    <streamlit-app>
+      import streamlit as st
+
+      name = st.text_input("Your name")
+      st.write("Hello,", name or "world")
+    </streamlit-app>
+  </body>
+</html>
+```
+
+Save this as `app.html` and open it in your browser. That's it — a fully interactive Streamlit app with no server.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="@stlite/browser overview"
+    icon="globe"
+    href="/browser/overview"
+  >
+    Learn all the features of the `@stlite/browser` package: multipage apps, file mounting, IndexedDB persistence, and the SharedWorker mode.
+  </Card>
+  <Card
+    title="mount() API reference"
+    icon="code"
+    href="/browser/mount-api"
+  >
+    Use the lower-level `mount()` JavaScript function for fine-grained control: pass files, archives, config, and custom Pyodide distributions programmatically.
+  </Card>
+  <Card
+    title="@stlite/react overview"
+    icon="react"
+    href="/react/overview"
+  >
+    Integrate Stlite into an existing React application using `createKernel()` and the `<StliteAppWithToast>` component.
+  </Card>
+  <Card
+    title="Try Stlite Sharing"
+    icon="play"
+    href="https://edit.share.stlite.net/"
+  >
+    Experiment with Stlite in the browser-based online editor — no file needed.
+  </Card>
+</CardGroup>

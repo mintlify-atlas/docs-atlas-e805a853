@@ -1,0 +1,161 @@
+---
+title: "@stlite/browser: Embed Streamlit in Any Web Page"
+sidebarTitle: "Overview"
+description: "@stlite/browser lets you run Streamlit apps on static web pages via CDN. Load via script tag, use the custom element or mount() API, no server required."
+---
+
+`@stlite/browser` brings the full Streamlit runtime to any static web page. Powered by [Pyodide](https://pyodide.org/) and WebAssembly, it runs Python and Streamlit entirely inside the browser — no server, no backend, no deployment infrastructure required. The package exposes two complementary APIs: a declarative **`<streamlit-app>` custom HTML element** that you drop directly into your markup, and an imperative **`mount()` JavaScript function** that gives you full programmatic control over where and how the app renders.
+
+## Loading via CDN
+
+Add the following `<link>` and `<script>` tags to your page's `<head>`. The `<link>` tag loads the Streamlit stylesheet and the `type="module"` script registers the custom element and exports `mount()`.
+
+```html
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css"
+/>
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js"
+></script>
+```
+
+<Note>
+  Always pin to a specific version in production. The API may change between
+  releases and the unversioned `latest` URL is not guaranteed to be
+  backward-compatible.
+</Note>
+
+## Minimal examples
+
+### Using the `<streamlit-app>` custom element
+
+After loading the CDN script, place a `<streamlit-app>` tag anywhere in your `<body>`. Any Python code inside the tag is treated as the app's entry point script.
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Stlite App</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css"
+    />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js"
+    ></script>
+  </head>
+  <body>
+    <streamlit-app>
+      import streamlit as st
+
+      name = st.text_input('Your name')
+      st.write("Hello,", name or "world")
+    </streamlit-app>
+  </body>
+</html>
+```
+
+### Using the `mount()` function
+
+Import `mount` from the CDN module and call it with your Python source code and a target DOM element. You must still load the CSS separately via `<link>`.
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Stlite App</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js";
+      mount(
+        `
+import streamlit as st
+
+name = st.text_input('Your name')
+st.write("Hello,", name or "world")
+`,
+        document.getElementById("root"),
+      );
+    </script>
+  </body>
+</html>
+```
+
+<Tip>
+  If your Streamlit code contains backtick characters (for example, markdown
+  code fences), escape them with a backslash when embedding inside a JavaScript
+  template literal: `` \` ``. This limitation does not apply to the
+  `<streamlit-app>` tag.
+</Tip>
+
+## CDN URL variants
+
+<CodeGroup>
+
+```text Versioned (recommended)
+https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js
+https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.css
+```
+
+```text Latest release
+https://cdn.jsdelivr.net/npm/@stlite/browser/build/stlite.js
+https://cdn.jsdelivr.net/npm/@stlite/browser/build/stlite.css
+```
+
+```text Preview (main branch HEAD)
+https://stlite-browser-preview.pages.dev/stlite.js
+```
+
+</CodeGroup>
+
+<Warning>
+  The preview URL points to the unreleased head of the `main` branch. It may be
+  broken at any time and is not guaranteed to remain available. Do not use it in
+  production.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Custom Element"
+    icon="code"
+    href="/browser/custom-element"
+  >
+    Declaratively embed Streamlit apps with `<streamlit-app>`, `<app-file>`, `<app-requirements>`, and `<app-archive>` tags.
+  </Card>
+  <Card
+    title="mount() API"
+    icon="brackets-curly"
+    href="/browser/mount-api"
+  >
+    Full API reference for the `mount()` function, all options, and the returned controller object.
+  </Card>
+  <Card
+    title="Files & Archives"
+    icon="folder-open"
+    href="/browser/files-and-archives"
+  >
+    Mount inline strings, binary data, remote URLs, and zip archives onto the virtual file system.
+  </Card>
+  <Card
+    title="Configuration"
+    icon="sliders"
+    href="/browser/configuration"
+  >
+    Customize Streamlit theme, toolbar mode, and other settings via `streamlitConfig` or `config.toml`.
+  </Card>
+</CardGroup>

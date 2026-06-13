@@ -1,0 +1,72 @@
+---
+title: "@stlite/cli: Convert Streamlit Projects for Browser Deployment"
+sidebarTitle: "Overview"
+description: "@stlite/cli and stlite-cli (PyPI) convert local Streamlit projects to shareable URLs, self-contained HTML files, offline web bundles, or Electron desktop artifacts."
+---
+
+`@stlite/cli` is a command-line tool that converts a local Streamlit project into various Stlite deployment formats — from a single shareable URL to a fully offline web bundle or a standalone Electron desktop application. It is available both as an npm package (Node.js) and as `stlite-cli` on PyPI.
+
+## Installation
+
+You can run the CLI without a permanent install using `npx`, install it globally via npm, or use the Python distribution via pip or uvx:
+
+<CodeGroup>
+
+```bash npx (no install required)
+npx @stlite/cli <command> <path>
+```
+
+```bash npm global install
+npm install -g @stlite/cli
+stlite <command> <path>
+```
+
+```bash pip (PyPI)
+pip install stlite-cli
+stlite <command> <path>
+```
+
+```bash uvx (PyPI, no install required)
+uvx stlite-cli <command> <path>
+```
+
+</CodeGroup>
+
+<Note>
+  The Python distribution (`stlite-cli` on PyPI) covers the `share` and `html`
+  commands, which produce byte-identical output to the Node.js version. The
+  `web` and `desktop` commands are **Node.js only** — they rely on
+  Pyodide-in-Node tooling that is not available in the Python package.
+</Note>
+
+## Requirements
+
+| Runtime | Minimum version |
+| ------- | --------------- |
+| Node.js | >= 22           |
+
+## Available commands
+
+<CardGroup cols={2}>
+  <Card title="stlite share" href="/cli/commands#stlite-share-path">
+    Encode a project as a hash-fragment URL that opens directly on
+    [share.stlite.net](https://share.stlite.net/). No server needed — the
+    entire app is embedded in the URL itself.
+  </Card>
+  <Card title="stlite html" href="/cli/commands#stlite-html-path">
+    Export the project as a single self-contained `.html` file that loads
+    `@stlite/browser` from jsDelivr and embeds all project files inline.
+  </Card>
+  <Card title="stlite web" href="/cli/commands#stlite-web-path">
+    Package the project as a multi-file offline web directory. The output
+    bundles `@stlite/browser`, the Pyodide runtime, and a pre-vendored
+    site-packages snapshot — no CDN fetch at boot. *(Node.js only)*
+  </Card>
+  <Card title="stlite desktop" href="/cli/commands#stlite-desktop-path">
+    Package the project into a Stlite Desktop artifact consumed by
+    `electron-builder` to produce a standalone Electron application.
+    *(Node.js only)*
+  </Card>
+</CardGroup>
+
+For full option references and examples, see the [Commands](/cli/commands) page.

@@ -1,0 +1,82 @@
+---
+title: "Stlite: Run Streamlit Apps Entirely in the Browser"
+sidebarTitle: "Introduction"
+description: "Stlite uses Pyodide (WebAssembly CPython) to run Streamlit apps client-side with no server. Learn what it is, how it works, and which package fits your use case."
+---
+
+Stlite is a port of [Streamlit](https://streamlit.io/) to WebAssembly that lets you run Python data apps entirely inside the browser — no server, no backend, no deployment pipeline required. By compiling CPython to WebAssembly via [Pyodide](https://pyodide.org/), Stlite executes your Streamlit scripts client-side, so every visitor runs the app locally in their own browser tab. You can ship a fully interactive Python app as a static HTML file, embed it in a React application, or bundle it into a cross-platform desktop executable.
+
+## How It Works
+
+Stlite layers three key technologies to replace the traditional Streamlit server:
+
+- **Pyodide (WebAssembly CPython)** — A full CPython interpreter compiled to WebAssembly. Pyodide runs inside the browser and can import pure-Python packages from PyPI via `micropip`, as well as a growing set of packages with native extensions that have been pre-compiled for the Pyodide environment.
+- **Web Workers** — Python execution happens inside a [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API), keeping the heavy computation off the browser's main thread so the UI stays responsive. An optional **SharedWorker** mode lets multiple Stlite apps share a single worker to reduce memory consumption.
+- **No-server architecture** — Stlite replaces Streamlit's WebSocket-based communication between browser and server with an in-process message-passing bridge. The rendered UI components are the same as standard Streamlit; only the transport layer changes. The result is a fully static artifact — HTML, CSS, and JavaScript — that works when opened directly from the file system or hosted on any CDN.
+
+<Note>
+  Because Stlite runs in a sandboxed browser environment, some Python features behave differently. For example, `time.sleep()` is a no-op (use `asyncio.sleep()` instead), and only packages compatible with the Pyodide runtime can be installed. See the [Stlite README](https://github.com/whitphx/stlite#limitations) for the full list of known limitations.
+</Note>
+
+## Packages
+
+Stlite ships as several packages, each targeting a different distribution scenario. Choose the one that matches how you want to build and share your app.
+
+<CardGroup cols={2}>
+  <Card
+    title="@stlite/browser"
+    icon="globe"
+    href="/browser/overview"
+  >
+    Embed a Streamlit app in any static HTML page via a CDN `<script>` tag or the `mount()` JavaScript function. Zero build step required — ideal for quick sharing and simple self-hosted pages.
+  </Card>
+  <Card
+    title="@stlite/react"
+    icon="react"
+    href="/react/overview"
+  >
+    React bindings for Stlite. Integrate the Pyodide-backed Streamlit kernel directly into an existing React application using `createKernel()` and the `<StliteAppWithToast>` component.
+  </Card>
+  <Card
+    title="@stlite/desktop"
+    icon="desktop"
+    href="/desktop/overview"
+  >
+    Bundle your Streamlit app into a standalone desktop executable (`.app`, `.exe`, `.dmg`) using Electron and `electron-builder`. Packages ship with a pre-vendored Pyodide runtime so the app works fully offline.
+  </Card>
+  <Card
+    title="@stlite/cli"
+    icon="terminal"
+    href="/cli/overview"
+  >
+    Command-line tools for converting a local Streamlit project into a shareable URL, a self-contained HTML file, an offline web bundle, or a Stlite Desktop artifact — all from a single `stlite` command.
+  </Card>
+</CardGroup>
+
+## Package Comparison
+
+| Package | Use case | Requires build step? | Distribution |
+|---|---|---|---|
+| `@stlite/browser` | Static HTML pages, quick embeds, CDN hosting | No | Single `.html` file or any static host |
+| `@stlite/react` | Embedding Streamlit inside a React application | Yes (Vite) | Bundled web app |
+| `@stlite/desktop` | Cross-platform desktop executables | Yes (npm + electron-builder) | `.app` / `.exe` / `.dmg` installer |
+| `@stlite/cli` | CLI conversion of existing Streamlit projects | No (npx / pip) | Shareable URL, `.html` file, offline bundle, or desktop artifact |
+
+## Key Features
+
+- **No server required** — the entire Python runtime runs in the visitor's browser via WebAssembly.
+- **Runtime package installation** — install packages at startup using the `requirements` option (or `<app-requirements>` tag) via `micropip`. No rebuild needed.
+- **Multipage apps** — pass multiple `pages/*.py` files via the `files` option to build standard Streamlit multipage apps.
+- **SharedWorker mode** — run multiple Stlite apps in a single shared worker to reduce memory consumption when embedding many apps on one page.
+- **IndexedDB file persistence** — mount the `IDBFS` filesystem to chosen directories so files written by your Python code survive page reloads and browser sessions.
+- **Custom Pyodide distribution** — point the `pyodideUrl` option at your own Pyodide mirror for air-gapped or CDN-restricted environments.
+- **Streamlit config support** — pass `streamlitConfig` key-value pairs (e.g. `theme.base`, `client.toolbarMode`) to configure the app without a `config.toml` file.
+- **Top-level `await`** — unlike standard Streamlit, Stlite supports top-level `await` in app scripts, enabling async HTTP requests (`pyodide.http.pyfetch()`) and `asyncio.sleep()` directly at the script level.
+- **HTTP client compatibility** — `requests` and `urllib` work via automatic [`pyodide-http`](https://github.com/koenvo/pyodide-http) patches; `urllib3` ≥ 2.2.0 has native Pyodide support.
+- **Desktop & offline bundles** — `@stlite/desktop` and `@stlite/cli web` pre-vendor the Pyodide runtime and package wheels so the app runs without any network access.
+
+## Try It Online
+
+You can experiment with Stlite immediately — no installation needed — in the **Stlite Sharing** online editor:
+
+[Open Stlite Sharing →](https://edit.share.stlite.net/)

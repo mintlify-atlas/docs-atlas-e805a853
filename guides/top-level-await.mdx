@@ -1,0 +1,128 @@
+---
+title: "Top-Level Await in Stlite: Using Async Code in Streamlit Apps"
+sidebarTitle: "Top-Level Await"
+description: "Stlite supports top-level await because the browser event loop is always running. Learn when to use it instead of asyncio.run(), with asyncio.sleep and pyfetch examples."
+---
+
+Stlite supports writing `await` expressions directly at the top level of your Streamlit script — outside of any `async def` function. This is necessary because the browser runtime that Stlite runs on has a fundamentally different execution model from standard Python, and the usual `asyncio.run()` call simply does not work. Understanding when and why to use top-level `await` will help you write correct async code in your Stlite apps.
+
+## Why `asyncio.run()` doesn't work
+
+In a standard server-side Streamlit deployment, your script runs in a normal Python process. If you need to call an async function, you can wrap it with `asyncio.run()`, which creates a fresh event loop, runs the coroutine to completion, and then exits:
+
+```python
+# Works fine in standard Streamlit (server-side)
+import asyncio
+
+async def fetch_data():
+    await asyncio.sleep(1)
+    return "done"
+
+result = asyncio.run(fetch_data())  # Creates a new event loop
+```
+
+Stlite is different. It runs Python via [Pyodide](https://pyodide.org/) inside a browser Web Worker. The browser already has a JavaScript event loop that is **always running** — there is only one, and it cannot be blocked or replaced. Calling `asyncio.run()` inside this environment tries to start a second event loop on top of the already-running one, which raises a `RuntimeError`.
+
+The solution is **top-level `await`**: Pyodide's execution model allows `await` at the top level of a script, suspending the script cooperatively on the running event loop rather than trying to spin up a new one.
+
+<Note>
+  Top-level `await` is a Stlite-specific feature. The same code will **not**
+  run in a standard Streamlit server deployment. If you need to share code
+  between both environments, wrap your async calls inside `async def` functions
+  and use `asyncio.run()` conditionally, or use synchronous alternatives where
+  available.
+</Note>
+
+## Example 1: `asyncio.sleep()`
+
+`time.sleep()` is a no-op in Stlite (see [Limitations](/guides/limitations)). It returns immediately without actually pausing execution because a true blocking sleep would freeze the browser's event loop and lock up the entire tab.
+
+The correct replacement is `asyncio.sleep()`, which pauses the script cooperatively without blocking the event loop.
+
+**Direct top-level await:**
+
+```python
+import asyncio
+import streamlit as st
+
+st.write("Hello, world!")
+await asyncio.sleep(3)
+st.write("Goodbye, world!")
+```
+
+The script pauses for three seconds after printing "Hello, world!" before continuing to print "Goodbye, world!".
+
+**Via an async function:**
+
+You can also define an `async def` function and await it at the top level. This is useful when you want to group related async operations together:
+
+```python
+import asyncio
+import streamlit as st
+
+async def main():
+    st.write("Hello, world!")
+    await asyncio.sleep(3)
+    st.write("Goodbye, world!")
+
+await main()
+```
+
+Both snippets behave identically — choose whichever structure suits your app.
+
+## Example 2: `pyodide.http.pyfetch()`
+
+Pyodide provides [`pyodide.http.pyfetch()`](https://pyodide.org/en/stable/usage/api/python-api/http.html#pyodide.http.pyfetch), an async wrapper around the browser's native Fetch API. Since it is an async function, you must `await` it. Top-level `await` makes this concise:
+
+```python
+import pyodide.http
+import streamlit as st
+
+url = "https://jsonplaceholder.typicode.com/todos/1"
+response = await pyodide.http.pyfetch(url)
+data_in_bytes = await response.bytes()
+
+st.write(f"Fetched {len(data_in_bytes)} bytes")
+```
+
+The response object also provides `response.json()` and `response.string()` as awaitable methods for common response formats. See the [HTTP Requests guide](/guides/http-requests) for a full walkthrough of the available networking options.
+
+## `st.spinner()` with blocking operations
+
+Stlite runs in a single-threaded environment. When a blocking operation occupies the event loop, no other code — including the code that renders the spinner — gets a chance to run. This means `st.spinner()` will not visually appear if you call a blocking method immediately inside the `with` block.
+
+**The problem:**
+
+```python
+import streamlit as st
+import pyodide.http
+
+# The spinner never appears before open_url() blocks the event loop
+with st.spinner("Loading..."):
+    response = pyodide.http.open_url("https://example.com/data.txt")
+```
+
+**The fix — yield control first with `asyncio.sleep(0.1)`:**
+
+Adding a short async sleep before the blocking call gives the event loop a chance to render the spinner UI before execution is handed back to the blocking method:
+
+```python
+import asyncio
+import streamlit as st
+import pyodide.http
+
+with st.spinner("Loading..."):
+    await asyncio.sleep(0.1)  # Yield to the event loop so the spinner can render
+    response = pyodide.http.open_url("https://example.com/data.txt")
+
+content = response.read()
+st.write(content)
+```
+
+<Note>
+  The `await asyncio.sleep(0.1)` adds a real 0.1-second delay to your
+  execution. This is an intentional trade-off to allow the spinner to appear.
+  For most use cases the slight delay is imperceptible.
+</Note>
+
+The same pattern applies to any blocking method used inside `st.spinner()` — always add `await asyncio.sleep(0.1)` before the blocking call when you need the spinner to display.

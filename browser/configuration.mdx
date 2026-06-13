@@ -1,0 +1,143 @@
+---
+title: "Streamlit Configuration Options in Stlite"
+sidebarTitle: "Configuration"
+description: "Configure Streamlit theme, toolbar, and client settings in Stlite using the streamlitConfig option or .streamlit/config.toml mounted as a file."
+---
+
+Stlite supports the standard Streamlit configuration system, including themes, toolbar visibility, and client behavior flags. There are two ways to apply configuration: the `streamlitConfig` option on `mount()` (or the equivalent `<app-file name=".streamlit/config.toml">` child element) and a mounted `config.toml` file. Both approaches are equivalent and can be combined.
+
+## The `streamlitConfig` option
+
+Pass a flat JavaScript object to `streamlitConfig` where each key is a dot-separated Streamlit configuration path — the same identifier you would use as a `--` flag with `streamlit run` — and the value is a string, number, or boolean.
+
+```js
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import streamlit as st
+
+st.title("Themed app")
+st.write("This app uses a custom dark theme.")
+`,
+    },
+    streamlitConfig: {
+      "theme.base": "dark",
+      "theme.primaryColor": "#00b4d8",
+      "theme.backgroundColor": "#03045e",
+      "theme.secondaryBackgroundColor": "#0077b6",
+      "theme.textColor": "#caf0f8",
+      "client.toolbarMode": "viewer",
+      "client.showErrorDetails": false,
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+### Common `streamlitConfig` keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `theme.base` | `"light"` \| `"dark"` | Base color scheme for the app. |
+| `theme.primaryColor` | `string` | Hex color used for interactive elements. |
+| `theme.backgroundColor` | `string` | Main background color. |
+| `theme.secondaryBackgroundColor` | `string` | Background color of sidebars and secondary containers. |
+| `theme.textColor` | `string` | Default text color. |
+| `client.toolbarMode` | `"auto"` \| `"developer"` \| `"viewer"` \| `"minimal"` | Controls visibility of the top-right toolbar. |
+| `client.showErrorDetails` | `boolean` | When `false`, hides detailed Python tracebacks from end users. |
+
+## Alternative: `.streamlit/config.toml` file
+
+You can achieve the same result by mounting a standard Streamlit `config.toml` file at `.streamlit/config.toml` in the virtual file system. This is particularly convenient with the `<streamlit-app>` custom element.
+
+<CodeGroup>
+
+```js mount() API
+mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": `
+import streamlit as st
+
+st.title("Themed app")
+st.write("Configured via config.toml")
+`,
+      ".streamlit/config.toml": `
+[theme]
+base = "dark"
+primaryColor = "#00b4d8"
+backgroundColor = "#03045e"
+secondaryBackgroundColor = "#0077b6"
+textColor = "#caf0f8"
+
+[client]
+toolbarMode = "viewer"
+showErrorDetails = false
+`,
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+```html <streamlit-app> custom element
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint>
+    import streamlit as st
+
+    st.title("Themed app")
+    st.write("Configured via config.toml")
+  </app-file>
+
+  <app-file name=".streamlit/config.toml">
+    [theme]
+    base = "dark"
+    primaryColor = "#00b4d8"
+    backgroundColor = "#03045e"
+    secondaryBackgroundColor = "#0077b6"
+    textColor = "#caf0f8"
+
+    [client]
+    toolbarMode = "viewer"
+    showErrorDetails = false
+  </app-file>
+</streamlit-app>
+```
+
+</CodeGroup>
+
+<Tip>
+  `streamlitConfig` and a mounted `config.toml` file can both be used at the
+  same time. If the same key appears in both, `streamlitConfig` takes
+  precedence.
+</Tip>
+
+## Custom Pyodide distribution (`pyodideUrl`)
+
+By default Stlite loads Pyodide from the official jsDelivr CDN. If your deployment environment has a restrictive content security policy or limits outbound CDN access, you can host Pyodide yourself and point Stlite at it via the `pyodideUrl` option.
+
+```js
+mount(
+  {
+    pyodideUrl: "https://my-internal-cdn.example.com/pyodide/pyodide.js",
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": "import streamlit as st\nst.write('hello')",
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+<Warning>
+  Always use the **full** Pyodide distribution, not the core-only build. Stlite
+  loads packages such as `micropip` from the Pyodide distribution at runtime,
+  and these packages are absent from the core distribution. Even though the full
+  distribution is large (\+200 MB), only the packages actually used by your app
+  are downloaded on demand, so the real download footprint is much smaller.
+</Warning>
+
+Pyodide distributions are available for download from the [Pyodide GitHub releases](https://github.com/pyodide/pyodide/releases). Serve the directory with a static file server that sets appropriate CORS headers so the worker can fetch packages cross-origin.

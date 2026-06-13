@@ -1,0 +1,130 @@
+---
+title: "Get Started with @stlite/react in a Vite App"
+sidebarTitle: "Quickstart"
+description: "Step-by-step guide to integrating @stlite/react into a Vite React project: install, configure the Vite plugin, create a kernel, and render StliteAppWithToast."
+---
+
+This guide walks you through embedding a Streamlit app inside a brand-new Vite React project. By the end you will have a running browser-only Streamlit app rendered as a React component, with no Python server required.
+
+<Steps>
+
+  <Step title="Create a Vite React project">
+    Scaffold a new project using the official Vite React TypeScript template:
+
+    ```bash
+    npm create vite@latest my-app -- --template react-ts
+    cd my-app
+    ```
+
+    Any Vite React project works — the template is just a convenient starting point.
+  </Step>
+
+  <Step title="Install @stlite/react">
+    Add `@stlite/react` to the project. `react` and `react-dom` are peer dependencies; the Vite template already includes them.
+
+    ```bash
+    npm install @stlite/react
+    ```
+  </Step>
+
+  <Step title="Configure vite.config.ts">
+    Open `vite.config.ts` and add the `stliteReactPlugin`. This plugin ensures the bundled Streamlit wheel files and Pyodide assets are emitted and addressable at runtime.
+
+    ```ts
+    // vite.config.ts
+    import { defineConfig } from 'vite';
+    import react from '@vitejs/plugin-react';
+    import stliteReactPlugin from '@stlite/react/vite-plugin';
+
+    export default defineConfig({
+      plugins: [react(), stliteReactPlugin()],
+    });
+    ```
+
+    <Warning>
+      The `stliteReactPlugin` is required. Without it `wheelUrls` will point to non-existent paths and the kernel will fail to boot.
+    </Warning>
+  </Step>
+
+  <Step title="Create the app">
+    Replace the contents of `src/main.tsx` with the following. This creates a kernel, defines an inline Streamlit script, and renders it using `StliteAppWithToast`.
+
+    ```tsx
+    // src/main.tsx
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { StliteAppWithToast, createKernel } from '@stlite/react';
+    import { wheelUrls } from '@stlite/react/vite-utils';
+    import '@stlite/react/stlite.css';
+
+    const kernel = createKernel({
+      entrypoint: 'streamlit_app.py',
+      files: {
+        'streamlit_app.py': {
+          data: `
+    import streamlit as st
+
+    st.write("Hello from Stlite + React!")
+    `,
+        },
+      },
+      archives: [],
+      requirements: [],
+      prebuiltPackageNames: [],
+      wheelUrls,
+    });
+
+    createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
+        <StliteAppWithToast kernel={kernel} />
+      </React.StrictMode>,
+    );
+    ```
+
+    <Note>
+      `createKernel` is called **outside** the component tree so the kernel is created only once — not re-created on every render. Alternatively, use the [`useKernel`](/react/api-reference#usekernel) hook inside a component to tie the kernel's lifetime to the component's mount/unmount cycle.
+    </Note>
+  </Step>
+
+  <Step title="Run the dev server">
+    Start the Vite development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    Open the URL shown in the terminal (typically `http://localhost:5173`). Pyodide and Streamlit load inside a Web Worker and the app renders once the kernel finishes booting. Toast notifications show progress while the environment is being set up.
+  </Step>
+
+</Steps>
+
+## StliteApp vs StliteAppWithToast
+
+`StliteAppWithToast` wraps `StliteApp` and adds a [react-toastify](https://fkhadra.github.io/react-toastify/) overlay that displays:
+
+- **Load progress** — shows messages while Pyodide and Streamlit are being initialised.
+- **Load errors** — displays a toast when the kernel fails to start.
+- **Module auto-load** — notifies when Streamlit's module auto-loading feature installs new packages.
+
+To opt out of all toasts, use `StliteApp` directly:
+
+```tsx
+import { StliteApp, createKernel } from '@stlite/react';
+
+// ...
+
+<StliteApp kernel={kernel} />
+```
+
+You can also selectively disable individual toast categories with `StliteAppWithToast`'s `disableProgressToasts`, `disableErrorToasts`, and `disableModuleAutoLoadToasts` props. See the [API Reference](/react/api-reference#stliteappwithtoast-component) for details.
+
+## About wheelUrls from @stlite/react/vite-utils
+
+The `wheelUrls` object imported from `@stlite/react/vite-utils` contains the resolved, hashed URLs of the bundled `stlite-lib` and `streamlit` Python wheel files that `stliteReactPlugin` emits during the build. Pyodide uses these URLs to install Streamlit in the in-browser Python environment.
+
+```ts
+import { wheelUrls } from '@stlite/react/vite-utils';
+// { stliteLib: '/assets/stlite_lib-....whl', streamlit: '/assets/streamlit-....whl' }
+```
+
+The `stliteReactPlugin` resolves these at build time. You should always pass this value to `createKernel` as `wheelUrls` rather than hard-coding paths manually.

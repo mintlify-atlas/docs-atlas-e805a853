@@ -1,0 +1,320 @@
+---
+title: "mount() Function API Reference for @stlite/browser"
+sidebarTitle: "mount() API"
+description: "API reference for the mount() function in @stlite/browser. Documents all options: entrypoint, files, requirements, archives, streamlitConfig, and the returned controller."
+---
+
+`mount()` is the core JavaScript function exported by `@stlite/browser`. It creates a Streamlit runtime inside any DOM element, accepts fine-grained options for files, packages, configuration, and the virtual file system, and returns a controller object that lets you interact with the running app after startup. The [`<streamlit-app>` custom element](/browser/custom-element) is a declarative wrapper around this same function.
+
+## Function signature
+
+```typescript
+mount(options: string | MountOptions, container?: HTMLElement): Controller
+```
+
+`container` defaults to `document.body` when omitted.
+
+## Simple string usage
+
+Pass a Python source string as the first argument to get a running app with minimal boilerplate. The string is written to `streamlit_app.py` in the virtual file system and used as the entry point.
+
+```html
+<div id="root"></div>
+<script type="module">
+  import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js";
+
+  mount(
+    `
+import streamlit as st
+
+name = st.text_input('Your name')
+st.write("Hello,", name or "world")
+`,
+    document.getElementById("root"),
+  );
+</script>
+```
+
+## Full options object usage
+
+For more control pass a `MountOptions` object as the first argument.
+
+```js
+import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js";
+
+const controller = mount(
+  {
+    entrypoint: "streamlit_app.py",
+    requirements: ["matplotlib", "numpy"],
+    files: {
+      "streamlit_app.py": `
+import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
+
+size = st.slider("Sample size", 100, 1000)
+arr = np.random.normal(1, 1, size=size)
+fig, ax = plt.subplots()
+ax.hist(arr, bins=20)
+st.pyplot(fig)
+`,
+    },
+    streamlitConfig: {
+      "client.toolbarMode": "viewer",
+    },
+  },
+  document.getElementById("root"),
+);
+```
+
+## Options reference
+
+<ParamField path="entrypoint" type="string" required>
+  The file path inside the virtual file system that Streamlit will run (equivalent to the argument passed to `streamlit run`). Required when `options` is an object. The file must exist either in `files` or as a result of unpacking an `archives` entry.
+
+  ```js
+  { entrypoint: "streamlit_app.py" }
+  ```
+</ParamField>
+
+<ParamField path="files" type="object">
+  Files to mount onto the Pyodide virtual file system before the app starts. Keys are file paths; values can be a string, a `Uint8Array`, an object with a `url` field (fetched at startup), or an object with `data` and `opts` fields. See [Files & Archives](/browser/files-and-archives) for full details.
+
+  ```js
+  {
+    files: {
+      "streamlit_app.py": "import streamlit as st\nst.write('hello')",
+      "data/sample.csv": { url: "./sample.csv" },
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="requirements" type="string[]">
+  Python packages to install via `micropip` during the boot phase, using the same syntax as `requirements.txt`. These are installed alongside Streamlit's own built-in dependencies in a single `micropip.install()` call.
+
+  ```js
+  { requirements: ["pandas", "matplotlib", "scikit-learn"] }
+  ```
+</ParamField>
+
+<ParamField path="prebuiltPackageNames" type="string[]">
+  Packages to install via Pyodide's `pyodide.loadPackage()` rather than micropip. Use this for packages like `openssl` that are distributed as Pyodide built-in packages and are not installable through micropip.
+
+  ```js
+  { prebuiltPackageNames: ["openssl"] }
+  ```
+</ParamField>
+
+<ParamField path="archives" type="array">
+  Archive files (e.g. zip, tar) to download, unpack, and mount onto the virtual file system. Each entry is an object with `url` or `buffer`, plus `format` and optional `options` forwarded to `pyodide.unpackArchive()`. See [Files & Archives](/browser/files-and-archives) for full details.
+
+  ```js
+  {
+    archives: [
+      { url: "./assets.zip", format: "zip", options: {} }
+    ]
+  }
+  ```
+</ParamField>
+
+<ParamField path="installs" type="array">
+  Additional package install operations with full micropip option control. Use this when you need to pass non-default flags to [`micropip.install`](https://micropip.pyodide.org/en/v0.7.1/project/api.html#micropip.install) such as `pre`, `index_urls`, or `keep_going`. Each entry has `requirements` (string array) and an optional `options` object.
+
+  ```js
+  {
+    installs: [
+      {
+        requirements: ["my-private-package"],
+        options: {
+          index_urls: ["https://my-private-pypi.example.com/simple"],
+          pre: true,
+        },
+      },
+    ]
+  }
+  ```
+</ParamField>
+
+<ParamField path="streamlitConfig" type="object">
+  Streamlit configuration key-value pairs. Keys follow the dot-separated format used by `streamlit run --` flags (e.g. `"theme.base"`, `"client.toolbarMode"`). Values can be strings, numbers, or booleans. See [Configuration](/browser/configuration) for a full example.
+
+  ```js
+  {
+    streamlitConfig: {
+      "theme.base": "dark",
+      "client.toolbarMode": "viewer",
+      "client.showErrorDetails": false,
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="pyodideUrl" type="string">
+  URL of a custom `pyodide.js` (or `pyodide.mjs`) distribution. Use this when your organization restricts CDN access or you need to serve Pyodide from your own infrastructure. Must point to the **full** Pyodide distribution — not the core-only build — because Stlite loads packages such as `micropip` that are absent from the core distribution.
+
+  ```js
+  { pyodideUrl: "https://my-cdn.example.com/pyodide/pyodide.js" }
+  ```
+</ParamField>
+
+<ParamField path="idbfsMountpoints" type="string[]">
+  File system paths to mount with [Emscripten's `IDBFS`](https://emscripten.org/docs/api_reference/Filesystem-API.html#filesystem-api-idbfs) (IndexedDB-backed) file system. Files written under these paths persist across page reloads. Paths not listed here use the default ephemeral `MEMFS` backend.
+
+  ```js
+  { idbfsMountpoints: ["/mnt/persistent"] }
+  ```
+</ParamField>
+
+<ParamField path="sharedWorker" type="boolean">
+  When `true`, the app runs inside a [`SharedWorker`](https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker) shared with all other Stlite apps on the page that also have `sharedWorker: true`. This reduces memory consumption when many apps are mounted simultaneously. Defaults to `false`. Falls back to a dedicated worker on browsers that do not support `SharedWorker` (e.g. Chrome for Android).
+</ParamField>
+
+<ParamField path="disableProgressToasts" type="boolean">
+  When `true`, suppresses the loading-progress toast notifications shown while Pyodide and packages are being downloaded. Defaults to `false`.
+</ParamField>
+
+<ParamField path="disableErrorToasts" type="boolean">
+  When `true`, suppresses the error toast notifications shown when a runtime error occurs. Defaults to `false`.
+</ParamField>
+
+<ParamField path="disableModuleAutoLoadToasts" type="boolean">
+  When `true`, suppresses the toast notifications shown when Stlite automatically detects and installs missing Python packages. Defaults to `false`.
+</ParamField>
+
+<ParamField path="disableDocumentStyles" type="boolean">
+  When `true`, prevents Stlite from injecting global CSS rules into the host document. Useful when embedding inside an existing application or iframe where Stlite's default styles would conflict with the host page. Defaults to `false`.
+</ParamField>
+
+<ParamField path="styleNonce" type="string">
+  A [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP) nonce to attach to `<style>` elements injected by Stlite. Required when your CSP policy enforces `'nonce-…'` on inline styles.
+</ParamField>
+
+## Returned controller
+
+`mount()` returns a controller object with the following methods for interacting with the live app.
+
+<ParamField path="unmount()" type="function">
+  Tears down the Streamlit app and React root, and disposes the underlying kernel. Call this when the container element is removed from the DOM.
+
+  ```js
+  const controller = mount("import streamlit as st\nst.write('hi')", el);
+  // later…
+  controller.unmount();
+  ```
+</ParamField>
+
+<ParamField path="install(requirements, options?)" type="function">
+  Installs additional Python packages into the running environment via `micropip.install()`. Returns a `Promise` that resolves when the install is complete. Accepts an optional `MicropipInstallOptions` object as the second argument.
+
+  ```js
+  await controller.install(["altair", "vega-datasets"]);
+  ```
+</ParamField>
+
+<ParamField path="writeFile(path, data, opts?)" type="function">
+  Writes a file to the virtual file system at runtime. `data` can be a `string` or `ArrayBufferView`. Returns a `Promise`.
+
+  ```js
+  await controller.writeFile("data.csv", "a,b,c\n1,2,3\n");
+  ```
+</ParamField>
+
+<ParamField path="readFile(path, opts?)" type="function">
+  Reads a file from the virtual file system. Returns a `Promise<string | Uint8Array>`.
+
+  ```js
+  const content = await controller.readFile("output.txt");
+  ```
+</ParamField>
+
+<ParamField path="renameFile(oldPath, newPath)" type="function">
+  Renames (moves) a file within the virtual file system. Returns a `Promise`.
+
+  ```js
+  await controller.renameFile("old_name.py", "new_name.py");
+  ```
+</ParamField>
+
+<ParamField path="unlink(path)" type="function">
+  Deletes a file from the virtual file system. Returns a `Promise`.
+
+  ```js
+  await controller.unlink("temp.csv");
+  ```
+</ParamField>
+
+<ParamField path="runPython(code)" type="function">
+  Executes an arbitrary Python code string in the running Pyodide environment. Returns a `Promise` that resolves with the result of the last expression.
+
+  ```js
+  const result = await controller.runPython("1 + 1");
+  console.log(result); // 2
+  ```
+</ParamField>
+
+<ParamField path="getCodeCompletion(code, position)" type="function">
+  Requests Python code-completion suggestions for the given `code` string at the specified `{ line, column }` cursor position. Returns a `Promise` resolving to an array of completion objects (`{ name, type, docstring, complete }`).
+
+  ```js
+  const completions = await controller.getCodeCompletion("import st", { line: 0, column: 9 });
+  ```
+</ParamField>
+
+## SharedWorker example
+
+```html
+<div id="app1"></div>
+<div id="app2"></div>
+
+<script type="module">
+  import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.85.1/build/stlite.js";
+
+  mount(
+    {
+      sharedWorker: true,
+      entrypoint: "app.py",
+      files: { "app.py": "import streamlit as st\nst.write('App 1')" },
+    },
+    document.getElementById("app1"),
+  );
+
+  mount(
+    {
+      sharedWorker: true,
+      entrypoint: "app.py",
+      files: { "app.py": "import streamlit as st\nst.write('App 2')" },
+    },
+    document.getElementById("app2"),
+  );
+</script>
+```
+
+## `installs` option example
+
+Use `installs` when you need micropip options beyond the defaults — for example installing a pre-release from a private index.
+
+```js
+const controller = mount(
+  {
+    entrypoint: "streamlit_app.py",
+    files: {
+      "streamlit_app.py": "import streamlit as st\nst.write('hello')",
+    },
+    installs: [
+      {
+        requirements: ["my-package==1.0.0b1"],
+        options: {
+          pre: true,
+          index_urls: ["https://pypi.org/simple", "https://my-index.example.com/simple"],
+          keep_going: true,
+        },
+      },
+    ],
+  },
+  document.getElementById("root"),
+);
+
+// You can also install more packages after the app has started:
+await controller.install(["extra-package"], { keep_going: true });
+```
