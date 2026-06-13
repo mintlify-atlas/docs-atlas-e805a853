@@ -1,7 +1,7 @@
 ---
 title: "mount() Function API Reference for @stlite/browser"
 sidebarTitle: "mount() API"
-description: "API reference for the mount() function in @stlite/browser. Documents all options: entrypoint, files, requirements, archives, streamlitConfig, and the returned controller."
+description: "Full API reference for mount() in @stlite/browser: all options including entrypoint, files, archives, streamlitConfig, env, and the returned controller."
 ---
 
 `mount()` is the core JavaScript function exported by `@stlite/browser`. It creates a Streamlit runtime inside any DOM element, accepts fine-grained options for files, packages, configuration, and the virtual file system, and returns a controller object that lets you interact with the running app after startup. The [`<streamlit-app>` custom element](/browser/custom-element) is a declarative wrapper around this same function.
@@ -170,6 +170,27 @@ st.pyplot(fig)
   When `true`, the app runs inside a [`SharedWorker`](https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker) shared with all other Stlite apps on the page that also have `sharedWorker: true`. This reduces memory consumption when many apps are mounted simultaneously. Defaults to `false`. Falls back to a dedicated worker on browsers that do not support `SharedWorker` (e.g. Chrome for Android).
 </ParamField>
 
+<ParamField path="env" type="object">
+  A flat key-value mapping of environment variables to set inside the Pyodide runtime before the app starts. Both keys and values must be strings. These are accessible from Python via `os.environ`.
+
+  ```js
+  {
+    env: {
+      MY_API_KEY: "abc123",
+      APP_MODE: "production",
+    }
+  }
+  ```
+</ParamField>
+
+<ParamField path="languageServer" type="boolean">
+  When `true`, enables the Python language server inside the Pyodide runtime, which allows the `controller.getCodeCompletion()` method to return meaningful results. Enabling this loads additional Python packages and increases startup time. Defaults to `false`.
+
+  ```js
+  { languageServer: true }
+  ```
+</ParamField>
+
 <ParamField path="disableProgressToasts" type="boolean">
   When `true`, suppresses the loading-progress toast notifications shown while Pyodide and packages are being downloaded. Defaults to `false`.
 </ParamField>
@@ -209,6 +230,16 @@ st.pyplot(fig)
 
   ```js
   await controller.install(["altair", "vega-datasets"]);
+  ```
+</ParamField>
+
+<ParamField path="addMockPackage(name, version, modules?, persistent?)" type="function">
+  Registers a mock Python package in the running environment. Useful for testing or stubbing out packages that are unavailable in the Pyodide runtime. `modules` is an optional record mapping module names to their Python source code strings. `persistent` is an optional boolean controlling whether the mock survives a kernel reboot. Returns a `Promise`.
+
+  ```js
+  await controller.addMockPackage("my-stub", "1.0.0", {
+    "my_stub": "def hello(): return 'mock!'",
+  });
   ```
 </ParamField>
 

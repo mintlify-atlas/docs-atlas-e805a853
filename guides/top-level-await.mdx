@@ -1,7 +1,7 @@
 ---
-title: "Top-Level Await in Stlite: Using Async Code in Streamlit Apps"
+title: "Top-Level Await in Stlite: Async Streamlit Scripts"
 sidebarTitle: "Top-Level Await"
-description: "Stlite supports top-level await because the browser event loop is always running. Learn when to use it instead of asyncio.run(), with asyncio.sleep and pyfetch examples."
+description: "Stlite supports top-level await since the browser event loop is always running. Use it instead of asyncio.run() for asyncio.sleep and pyfetch calls."
 ---
 
 Stlite supports writing `await` expressions directly at the top level of your Streamlit script — outside of any `async def` function. This is necessary because the browser runtime that Stlite runs on has a fundamentally different execution model from standard Python, and the usual `asyncio.run()` call simply does not work. Understanding when and why to use top-level `await` will help you write correct async code in your Stlite apps.

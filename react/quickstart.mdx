@@ -23,7 +23,7 @@ This guide walks you through embedding a Streamlit app inside a brand-new Vite R
     Add `@stlite/react` to the project. `react` and `react-dom` are peer dependencies; the Vite template already includes them.
 
     ```bash
-    npm install @stlite/react
+    npm install -D @stlite/react
     ```
   </Step>
 
@@ -32,9 +32,9 @@ This guide walks you through embedding a Streamlit app inside a brand-new Vite R
 
     ```ts
     // vite.config.ts
-    import { defineConfig } from 'vite';
-    import react from '@vitejs/plugin-react';
-    import stliteReactPlugin from '@stlite/react/vite-plugin';
+    import { defineConfig } from "vite";
+    import react from "@vitejs/plugin-react";
+    import stliteReactPlugin from "@stlite/react/vite-plugin";
 
     export default defineConfig({
       plugins: [react(), stliteReactPlugin()],
@@ -51,16 +51,16 @@ This guide walks you through embedding a Streamlit app inside a brand-new Vite R
 
     ```tsx
     // src/main.tsx
-    import React from 'react';
-    import { createRoot } from 'react-dom/client';
-    import { StliteAppWithToast, createKernel } from '@stlite/react';
-    import { wheelUrls } from '@stlite/react/vite-utils';
-    import '@stlite/react/stlite.css';
+    import React from "react";
+    import { createRoot } from "react-dom/client";
+    import { StliteAppWithToast, createKernel } from "@stlite/react";
+    import { wheelUrls } from "@stlite/react/vite-utils";
+    import "@stlite/react/stlite.css";
 
     const kernel = createKernel({
-      entrypoint: 'streamlit_app.py',
+      entrypoint: "streamlit_app.py",
       files: {
-        'streamlit_app.py': {
+        "streamlit_app.py": {
           data: `
     import streamlit as st
 
@@ -74,9 +74,10 @@ This guide walks you through embedding a Streamlit app inside a brand-new Vite R
       wheelUrls,
     });
 
-    createRoot(document.getElementById('root')!).render(
+    createRoot(document.getElementById("root")!).render(
       <React.StrictMode>
         <StliteAppWithToast kernel={kernel} />
+        {/* <StliteApp kernel={kernel} /> // For non-toast version */}
       </React.StrictMode>,
     );
     ```
@@ -109,7 +110,7 @@ This guide walks you through embedding a Streamlit app inside a brand-new Vite R
 To opt out of all toasts, use `StliteApp` directly:
 
 ```tsx
-import { StliteApp, createKernel } from '@stlite/react';
+import { StliteApp, createKernel } from "@stlite/react";
 
 // ...
 
@@ -123,8 +124,8 @@ You can also selectively disable individual toast categories with `StliteAppWith
 The `wheelUrls` object imported from `@stlite/react/vite-utils` contains the resolved, hashed URLs of the bundled `stlite-lib` and `streamlit` Python wheel files that `stliteReactPlugin` emits during the build. Pyodide uses these URLs to install Streamlit in the in-browser Python environment.
 
 ```ts
-import { wheelUrls } from '@stlite/react/vite-utils';
-// { stliteLib: '/assets/stlite_lib-....whl', streamlit: '/assets/streamlit-....whl' }
+import { wheelUrls } from "@stlite/react/vite-utils";
+// { stliteLib: "/assets/stlite_lib-....whl", streamlit: "/assets/streamlit-....whl" }
 ```
 
 The `stliteReactPlugin` resolves these at build time. You should always pass this value to `createKernel` as `wheelUrls` rather than hard-coding paths manually.

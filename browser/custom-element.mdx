@@ -1,7 +1,7 @@
 ---
 title: "<streamlit-app> Custom Element API for Stlite"
 sidebarTitle: "Custom Element"
-description: "Use the <streamlit-app> HTML custom element to embed Stlite apps declaratively. Supports inline Python, multi-file apps, requirements, and SharedWorker mode."
+description: "Use the <streamlit-app> HTML custom element to embed Stlite apps declaratively. Supports inline Python, multi-file apps, requirements, and archives."
 ---
 
 The `<streamlit-app>` custom element lets you embed a Streamlit app entirely in HTML markup without writing any JavaScript. Once the `@stlite/browser` script is loaded, the browser automatically detects the tag, parses its children, and mounts the app onto the page. Under the hood it is a thin wrapper around the [`mount()` function](/browser/mount-api), so every feature available in `mount()` can also be expressed through the custom element syntax.
@@ -95,6 +95,16 @@ Pass `.streamlit/config.toml` as an `<app-file>` to configure Streamlit settings
   <app-requirements>
     pandas
   </app-requirements>
+</streamlit-app>
+```
+
+### `encoding` attribute on `<app-file>`
+
+When loading a file via `url`, you can pass an optional `encoding` attribute. The value is forwarded to Emscripten's `FS.writeFile()` as the `encoding` option (e.g. `"utf8"` or `"binary"`).
+
+```html
+<streamlit-app>
+  <app-file name="streamlit_app.py" entrypoint url="./app.py" encoding="utf8"></app-file>
 </streamlit-app>
 ```
 

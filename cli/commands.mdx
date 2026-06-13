@@ -1,7 +1,7 @@
 ---
 title: "stlite CLI Command Reference: share, html, web, desktop"
 sidebarTitle: "Commands"
-description: "Reference for all stlite CLI commands: share encodes projects as URLs, html exports self-contained files, web creates offline bundles, desktop builds Electron artifacts."
+description: "Reference for the four stlite CLI commands: share creates URLs, html exports single files, web builds offline bundles, desktop packages Electron apps."
 ---
 
 The `stlite` CLI exposes four commands — `share`, `html`, `web`, and `desktop` — each converting a local Streamlit project into a different deployment format. All commands take a project directory as their first positional argument.
@@ -115,7 +115,7 @@ python3 -m http.server -d ./out
   Output directory for the packaged web app. Defaults to `./build`.
 </ParamField>
 
-<ParamField query="--pyodideSource" type="string">
+<ParamField query="--pyodide-source" type="string">
   Base URL or local path for Pyodide files (`pyodide-lock.json`, prebuilt
   wheels). Defaults to the Pyodide version bundled with the CLI.
 </ParamField>
@@ -155,7 +155,7 @@ stlite desktop ./my-project -o ./dist/stlite
   Output directory for the packaged desktop artifact. Defaults to `./build`.
 </ParamField>
 
-<ParamField query="--pyodideSource" type="string">
+<ParamField query="--pyodide-source" type="string">
   Base URL or local path for Pyodide files (`pyodide-lock.json`, prebuilt
   wheels). Defaults to the Pyodide version bundled with the CLI.
 </ParamField>

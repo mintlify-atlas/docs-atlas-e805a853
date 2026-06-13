@@ -63,11 +63,21 @@ When you are done with a kernel, call `kernel.dispose()` to terminate the underl
   Packages to install via `pyodide.loadPackage()` rather than `micropip`. A small set of packages (such as `openssl`) can only be installed through this path. Pass an empty array if none are needed.
 </ParamField>
 
+<ParamField path="installs" type="Array<{ requirements: string[]; options?: MicropipInstallOptions }>">
+  Additional package installation batches with per-batch `micropip` options. Unlike `requirements` (which shares install options with the built-in Streamlit/stlite-lib batch), each entry here is a separate `micropip.install()` call and can carry its own `MicropipInstallOptions` — for example a custom `index_urls` or `pre: true` for pre-release packages.
+
+  ```ts
+  installs: [
+    { requirements: ['my-private-pkg'], options: { index_urls: ['https://my.registry/simple'] } },
+  ]
+  ```
+</ParamField>
+
 <ParamField path="wheelUrls" type="{ stliteLib: string; streamlit: string }">
   The URLs of the bundled `stlite-lib` and `streamlit` Python wheel files. In a Vite project, import this value from `@stlite/react/vite-utils` — the Vite plugin resolves the hashed asset URLs at build time.
 
   ```ts
-  import { wheelUrls } from '@stlite/react/vite-utils';
+  import { wheelUrls } from "@stlite/react/vite-utils";
 
   createKernel({ ..., wheelUrls });
   ```
@@ -114,6 +124,26 @@ When you are done with a kernel, call `kernel.dispose()` to terminate the underl
 
 <ParamField path="languageServer" type="boolean">
   Set to `true` to enable Python code completion. This loads additional packages into the Pyodide environment and makes `kernel.getCodeCompletion()` available. Defaults to `false`.
+</ParamField>
+
+<ParamField path="moduleAutoLoad" type="boolean">
+  Set to `true` to enable Streamlit's module auto-load feature, which detects Python import statements in the running script and automatically installs any missing packages via `micropip`. Defaults to `false`.
+</ParamField>
+
+<ParamField path="basePath" type="string">
+  The `pathname` used as the base path for custom component URLs and for the main page in multi-page apps. If omitted, `window.location.pathname` at the time of kernel initialisation is used. Set this explicitly when your server returns the main page for any sub-path, to avoid URL resolution issues.
+
+  ```ts
+  basePath: '/my-app'
+  ```
+</ParamField>
+
+<ParamField path="hostConfigProperties" type="IHostConfigProperties">
+  Advanced host-configuration properties forwarded to the Streamlit `ConnectionManager` as the host-config response. Most applications do not need this. It is primarily used to configure `allowedOrigins` for iframe messaging in embedded contexts such as the VS Code extension.
+</ParamField>
+
+<ParamField path="worker" type="Worker">
+  An existing `Worker` instance to use instead of letting `createKernel` construct one. This is an advanced escape hatch for environments with a custom worker setup — for example, Electron or Node.js desktop apps that provide their own worker backend.
 </ParamField>
 
 ---

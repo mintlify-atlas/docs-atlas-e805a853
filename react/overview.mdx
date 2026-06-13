@@ -41,11 +41,11 @@ Both packages embed a Streamlit app entirely in the browser with no Python serve
 Install the package and its peer dependencies:
 
 ```bash
-npm install @stlite/react react react-dom
+npm install -D @stlite/react
 ```
 
 <Tip>
-  `react` and `react-dom` are peer dependencies. If your project already has them installed at `^18.2.0` or later you do not need to install them again.
+  `react` and `react-dom` are peer dependencies. If your project already has them installed at `^18.2.0` or later you do not need to install them again. The `-D` flag installs `@stlite/react` as a dev dependency, which is the recommended setup when bundling with Vite.
 </Tip>
 
 ## Next steps

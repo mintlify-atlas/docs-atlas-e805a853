@@ -1,7 +1,7 @@
 ---
-title: "Virtual File System in Stlite: MEMFS, IDBFS, and File Operations"
+title: "Stlite File System Guide: MEMFS, IDBFS, and Access"
 sidebarTitle: "File System"
-description: "Stlite runs on Pyodide's virtual Linux-like file system isolated from the host OS. Learn how to mount files, use IndexedDB persistence, and access the FS from Python."
+description: "Stlite uses Pyodide's virtual file system, isolated from the host OS. Mount files at startup, persist data with IDBFS, and read or write files from Python."
 ---
 
 Stlite executes your Python code inside [Pyodide](https://pyodide.org/), which provides its own Linux-like virtual file system powered by [Emscripten](https://emscripten.org/docs/api_reference/Filesystem-API.html). This file system lives entirely in the browser — it is completely isolated from the host operating system. Understanding how it works helps you load data into your app, persist state across reloads, and manipulate files at runtime.
@@ -141,12 +141,10 @@ mount(
 import datetime
 import streamlit as st
 
-# Append a timestamp on every run — persists across reloads
-with open("/mnt/log.txt", "a") as f:
+with open("/mnt/data.txt", "a") as f:
     f.write(f"{datetime.datetime.now()}\\n")
 
-# Read back all recorded timestamps
-with open("/mnt/log.txt", "r") as f:
+with open("/mnt/data.txt", "r") as f:
     st.code(f.read())
 `,
     },

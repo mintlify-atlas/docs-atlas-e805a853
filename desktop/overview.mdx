@@ -1,7 +1,7 @@
 ---
 title: "@stlite/desktop: Bundle Streamlit Apps as Desktop Apps"
 sidebarTitle: "Overview"
-description: "@stlite/desktop converts your Streamlit Python app into a standalone Electron desktop app using Pyodide. No Python install required on the end-user's machine."
+description: "@stlite/desktop converts your Streamlit app into an Electron desktop app using Pyodide. No Python install required on the end-user's machine."
 ---
 
 `@stlite/desktop` lets you ship any Streamlit application as a fully self-contained desktop application for Windows, macOS, and Linux. Because Python runs entirely inside [Pyodide](https://pyodide.org/) — a WebAssembly port of CPython — end-users never need to install Python, pip, or any other dependency. The finished product is a native executable (`.exe`, `.app`, `.dmg`, etc.) that works completely offline.
@@ -38,5 +38,5 @@ description: "@stlite/desktop converts your Streamlit Python app into a standalo
 - **Custom Pyodide source.** Supply a local or alternative Pyodide distribution via `--pyodide-source` if JsDelivr CDN access is restricted in your environment.
 
 <Note>
-  The `dump` script in your `package.json` calls the `dump-stlite-desktop-artifacts` binary provided by `@stlite/desktop`. You can also invoke it directly as `@stlite/cli desktop <path>` if you are using the Stlite CLI package.
+  The `dump` script in your `package.json` calls the `dump-stlite-desktop-artifacts` binary provided by `@stlite/desktop`. Re-run it any time you change your app source files, add new packages, or update the `stlite.desktop` configuration.
 </Note>

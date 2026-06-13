@@ -1,7 +1,7 @@
 ---
-title: "Making HTTP Requests from Stlite Python Code"
+title: "HTTP Requests in Stlite: requests, urllib3, pyodide.http"
 sidebarTitle: "HTTP Requests"
-description: "Stlite supports HTTP requests via requests, urllib, urllib3 2.2+, and pyodide.http. Learn which libraries work and when to use each in the browser environment."
+description: "Stlite supports HTTP via requests, urllib, urllib3 2.2+, and pyodide.http. Learn which libraries work and how to use each one in the browser environment."
 ---
 
 Making HTTP requests from Python code running in the browser is not straightforward. Standard networking libraries like `requests` rely on system-level socket calls that do not exist in a WebAssembly sandbox. Stlite works around this by automatically patching popular libraries via [pyodide-http](https://github.com/koenvo/pyodide-http) and by exposing Pyodide's own async HTTP primitives — so you can make network calls without changing how you normally write Python code.

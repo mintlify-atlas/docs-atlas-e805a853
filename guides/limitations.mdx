@@ -1,7 +1,7 @@
 ---
 title: "Known Limitations of Stlite in the Browser Environment"
 sidebarTitle: "Limitations"
-description: "Stlite's browser runtime has known limitations: time.sleep is no-op, some packages aren't available, DataFrame serialization differences, and st.bokeh_chart is unsupported."
+description: "Stlite's browser runtime has known limitations: time.sleep is a no-op, binary packages fail, DataFrame types differ, and st.bokeh_chart is broken."
 ---
 
 Stlite runs your Python code inside [Pyodide](https://pyodide.org/) — a WebAssembly port of CPython that executes entirely in the browser. This is a genuinely different runtime from a standard Python server process, and it comes with constraints imposed by the browser security model, the single-threaded JavaScript event loop, and the limits of what can be compiled to WebAssembly. The known issues are documented below, along with workarounds where they exist.
@@ -70,8 +70,8 @@ import streamlit as st
 
 async def stream():
     for i in range(10):
-        yield str(i)
-        await asyncio.sleep(1)  # Yield to the event loop between chunks
+        yield i
+        await asyncio.sleep(1)
 
 st.write_stream(stream)
 ```
